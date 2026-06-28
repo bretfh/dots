@@ -10,10 +10,10 @@
   #:export (%wayland-environment-vars
             home-bash-service))
 
-;; Compositor-agnostic Wayland hints, safe in every shell. The session
+;; compositor-agnostic wayland hints, safe in every shell. the session
 ;; identity (XDG_CURRENT_DESKTOP, XDG_SESSION_TYPE) is deliberately absent:
-;; it is owned by whatever started the session -- a GDM .desktop entry, or
-;; the tty1 fallback below -- not by the interactive shell.
+;; it is owned by whatever started the session. a gdm .desktop entry, or
+;; the tty1 fallback below, or w/e; not by the interactive shell.
 (define %wayland-environment-vars
   '(("RTC_USE_PIPEWIRE" . "true")
     ("SDL_VIDEODRIVER" . "wayland")

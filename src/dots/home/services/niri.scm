@@ -1,10 +1,3 @@
-;;; Niri configuration as KDL data (see (dots config kdl)). Each section is a
-;;; plain SXML-shaped node; keybinds come from the `keybind' helper. Theme is
-;;; consumed as a <theme> record.
-;;;
-;;; Entry point: (niri-capability #:theme ... #:keyboard-layout ... ...)
-;;; returns a list of (path plain-file) pairs for home-xdg-configuration-files.
-
 (define-module (dots home services niri)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 format)
@@ -20,39 +13,37 @@
             default-niri-xkb-options))
 
 
-;;; keybind -- build one KDL bind node: (Mod+Return (spawn-sh "alacritty")).
+;;; keybind: build's one KDL bind node, ie (Mod+Return (spawn-sh "alacritty")).
 ;;; #:run CMD is sugar for the spawn-sh action; #:act gives any other action
 ;;; node directly (e.g. '(close-window) or '(set-column-width "-10%")).
-
 (define* (keybind #:key (mod "") key run act locked)
-  (let ((name   (if (string-null? mod) key (string-append mod "+" key)))
+  (let ((name (if (string-null? mod) key (string-append mod "+" key)))
         (action (if run (list 'spawn-sh run) act)))
     (if locked
         (list name '(@ (allow-when-locked true)) action)
         (list name action))))
 
 
-;;; default binding set -- niri-native (column model)
-
+;;; default binding set
 (define (desktop-launch-bindings desktop)
   "Return the niri keybindings that launch DESKTOP's terminal, picker, and
 editor, so the keys agree with the rest of the session."
   (list
    (keybind #:mod "Mod" #:key "Return" #:run (desktop-launch-terminal desktop))
-   (keybind #:mod "Mod" #:key "D"      #:run (desktop-launch-picker desktop))
-   (keybind #:mod "Mod" #:key "E"      #:run (desktop-launch-editor desktop))))
+   (keybind #:mod "Mod" #:key "D" #:run (desktop-launch-picker desktop))
+   (keybind #:mod "Mod" #:key "E" #:run (desktop-launch-editor desktop))))
 
 (define %niri-base-bindings
   (list
    ;; session
-   (keybind #:mod "Mod"       #:key "Q" #:act '(close-window))
+   (keybind #:mod "Mod" #:key "Q" #:act '(close-window))
    (keybind #:mod "Mod+Shift" #:key "E" #:act '(quit))
-   (keybind #:mod "Mod"       #:key "O" #:act '(toggle-overview))
-   (keybind #:mod "Mod"       #:key "W" #:run "bash ~/.config/rice/wallpaper")
+   (keybind #:mod "Mod" #:key "O" #:act '(toggle-overview))
+   (keybind #:mod "Mod" #:key "W" #:run "bash ~/.config/rice/wallpaper")
    (keybind #:mod "Mod+Shift" #:key "R"
             #:run "niri msg action load-config-file; eww reload; makoctl reload")
 
-   ;; focus -- Mod+H/L between columns, Mod+J/K within a column
+   ;; focus: Mod+H/L between columns, Mod+J/K within a column
    (keybind #:mod "Mod" #:key "H" #:act '(focus-column-left))
    (keybind #:mod "Mod" #:key "L" #:act '(focus-column-right))
    (keybind #:mod "Mod" #:key "J" #:act '(focus-window-down))
@@ -65,43 +56,43 @@ editor, so the keys agree with the rest of the session."
    (keybind #:mod "Mod+Shift" #:key "K" #:act '(move-window-up))
 
    ;; column composition
-   (keybind #:mod "Mod" #:key "comma"  #:act '(consume-window-into-column))
+   (keybind #:mod "Mod" #:key "comma" #:act '(consume-window-into-column))
    (keybind #:mod "Mod" #:key "period" #:act '(expel-window-from-column))
-   (keybind #:mod "Mod" #:key "C"      #:act '(center-column))
+   (keybind #:mod "Mod" #:key "C" #:act '(center-column))
 
    ;; column width / fullscreen
-   (keybind #:mod "Mod"       #:key "R"     #:act '(switch-preset-column-width))
-   (keybind #:mod "Mod"       #:key "F"     #:act '(maximize-column))
-   (keybind #:mod "Mod+Shift" #:key "F"     #:act '(fullscreen-window))
-   (keybind #:mod "Mod"       #:key "minus" #:act '(set-column-width "-10%"))
-   (keybind #:mod "Mod"       #:key "equal" #:act '(set-column-width "+10%"))
+   (keybind #:mod "Mod" #:key "R" #:act '(switch-preset-column-width))
+   (keybind #:mod "Mod" #:key "F" #:act '(maximize-column))
+   (keybind #:mod "Mod+Shift" #:key "F" #:act '(fullscreen-window))
+   (keybind #:mod "Mod" #:key "minus" #:act '(set-column-width "-10%"))
+   (keybind #:mod "Mod" #:key "equal" #:act '(set-column-width "+10%"))
 
    ;; floating
-   (keybind #:mod "Mod"       #:key "space" #:act '(toggle-window-floating))
+   (keybind #:mod "Mod" #:key "space" #:act '(toggle-window-floating))
    (keybind #:mod "Mod+Shift" #:key "space" #:act '(switch-focus-between-floating-and-tiling))
 
    ;; workspace cycle
    (keybind #:mod "Mod" #:key "Page_Down" #:act '(focus-workspace-down))
-   (keybind #:mod "Mod" #:key "Page_Up"   #:act '(focus-workspace-up))
+   (keybind #:mod "Mod" #:key "Page_Up" #:act '(focus-workspace-up))
 
    ;; screenshot
-   (keybind                   #:key "Print" #:act '(screenshot))
-   (keybind #:mod "Mod"       #:key "Print" #:act '(screenshot-screen))
+   (keybind #:key "Print" #:act '(screenshot))
+   (keybind #:mod "Mod" #:key "Print" #:act '(screenshot-screen))
    (keybind #:mod "Mod+Shift" #:key "Print" #:act '(screenshot-window))
 
    ;; brightness / audio
-   (keybind #:key "XF86MonBrightnessUp"   #:locked #t #:run "brightnessctl s +10%")
+   (keybind #:key "XF86MonBrightnessUp" #:locked #t #:run "brightnessctl s +10%")
    (keybind #:key "XF86MonBrightnessDown" #:locked #t #:run "brightnessctl s 10%-")
-   (keybind #:key "XF86AudioRaiseVolume"  #:locked #t #:run "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+")
-   (keybind #:key "XF86AudioLowerVolume"  #:locked #t #:run "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-")
-   (keybind #:key "XF86AudioMute"         #:locked #t #:run "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")))
+   (keybind #:key "XF86AudioRaiseVolume" #:locked #t #:run "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+")
+   (keybind #:key "XF86AudioLowerVolume" #:locked #t #:run "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-")
+   (keybind #:key "XF86AudioMute" #:locked #t #:run "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")))
 
 (define (numbered-workspace-bindings)
   (append-map
    (lambda (n)
      (let ((k (if (= n 10) "0" (number->string n))))
        (list
-        (keybind #:mod "Mod"       #:key k #:act `(focus-workspace ,n))
+        (keybind #:mod "Mod" #:key k #:act `(focus-workspace ,n))
         (keybind #:mod "Mod+Shift" #:key k #:act `(move-column-to-workspace ,n)))))
    (iota 10 1)))
 
@@ -110,26 +101,22 @@ editor, so the keys agree with the rest of the session."
           %niri-base-bindings
           (numbered-workspace-bindings)))
 
-
 ;;; default startup commands and xkb options
-
 (define default-niri-startups
   (list (desktop-launch-bar default-desktop)
         "mako"
         (format #f "dbus-update-activation-environment --systemd \
 WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
                 (desktop-xdg-name default-desktop))
-        ;; rebind the emacs daemon (a home shepherd service) to THIS session's
-        ;; Wayland display -- the persistent shepherd doesn't restart on login,
-        ;; and pgtk Emacs needs the live display to make GUI frames.
+        ;; rebind the emacs daemon (a home shepherd service) to this session's
+        ;; wayland display. this way, the persistent shepherd doesn't restart on login,
+        ;; and pgtk emacs needs the live display to make gui frames.
         "herd restart emacs-daemon"
         "bash ~/.config/rice/wallpaper"))
 
 (define default-niri-xkb-options "ctrl:swapcaps")
 
-
-;;; config sections, as KDL nodes
-
+;;; config sections, as kdl nodes
 (define (input-node keyboard-layout xkb-options)
   `(input
     (keyboard (xkb (layout ,keyboard-layout) (options ,(or xkb-options ""))))
@@ -150,8 +137,6 @@ WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
     (struts (left 4) (right 4) (top 4) (bottom 4))))
 
 (define (overview-node theme)
-  ;; The zoomed-out view: a deliberate dark field (bg-dim) behind the workspace
-  ;; tiles, and a shadow on each tile so the wallpaper'd workspaces float.
   `(overview
     (zoom 0.5)
     (backdrop-color ,(theme-color theme 'bg-dim))
@@ -164,12 +149,11 @@ WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
     (draw-border-with-background false)))
 
 (define (niri-intro)
-  "// Niri configuration - generated from (dots home services niri).
-// Do not edit by hand; edit src/dots/home/services/niri.scm instead.")
+  "// GENERATED ")
 
 (define* (niri-config #:key theme keyboard-layout xkb-options
                       (bindings '()) (startups '()))
-  "Return the list of KDL nodes for the niri config."
+  "return the list of kdl nodes for the niri config."
   (append
    (list (input-node keyboard-layout xkb-options)
          (layout-node theme)
@@ -184,7 +168,6 @@ WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
 
 
 ;;; the home-files capability
-
 (define* (niri-capability #:key theme
                           keyboard-layout
                           xkb-options
@@ -195,8 +178,8 @@ WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
        "config.kdl"
        (string-append
         (niri-intro) "\n"
-        (kdl (niri-config #:theme           theme
+        (kdl (niri-config #:theme theme
                           #:keyboard-layout keyboard-layout
-                          #:xkb-options     xkb-options
-                          #:bindings        bindings
-                          #:startups        startups)))))))
+                          #:xkb-options xkb-options
+                          #:bindings bindings
+                          #:startups startups)))))))

@@ -1,8 +1,3 @@
-;;; GTK theming generated from a <theme>. We do not author a full theme; we
-;;; override the named colour tokens GTK3 and libadwaita already expose, in the
-;;; user gtk.css, plus settings.ini for dark preference, icons, cursor, and
-;;; font. One palette skins every GTK app to match the rest of the desktop.
-
 (define-module (dots home services gtk)
   #:use-module (guix gexp)
   #:use-module (ice-9 format)
@@ -28,7 +23,7 @@ UI font, from THEME."
                (gtk-theme-name . ,(theme-gtk theme))
                (gtk-icon-theme-name . ,(theme-icons theme))
                (gtk-cursor-theme-name . ,(theme-cursor theme))
-               (gtk-font-name . ,(format #f "~a ~a" (fonts-sans f) (fonts-size f)))))))
+               (gtk-font-name . (\, (format #f "~a ~a" (fonts-sans f) (fonts-size f))))))))
 
 (define (gtk3-css theme)
   "Return gtk-3.0/gtk.css: override GTK3's named theme colours from THEME."
@@ -71,6 +66,6 @@ GTK4 apps follow the palette within libadwaita's structure."
 from THEME."
   (define settings (gtk-settings theme))
   `(("gtk-3.0/settings.ini" ,(plain-file "gtk3-settings.ini" settings))
-    ("gtk-3.0/gtk.css"       ,(plain-file "gtk3.css" (gtk3-css theme)))
-    ("gtk-4.0/settings.ini"  ,(plain-file "gtk4-settings.ini" settings))
-    ("gtk-4.0/gtk.css"       ,(plain-file "gtk4.css" (gtk4-css theme)))))
+    ("gtk-3.0/gtk.css" ,(plain-file "gtk3.css" (gtk3-css theme)))
+    ("gtk-4.0/settings.ini" ,(plain-file "gtk4-settings.ini" settings))
+    ("gtk-4.0/gtk.css" ,(plain-file "gtk4.css" (gtk4-css theme)))))

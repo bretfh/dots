@@ -1,8 +1,3 @@
-;;; waybar style generated from a <theme>: palette and mono font. The bar's
-;;; config (module layout and icon glyphs) stays a curated file -- it carries
-;;; no colours -- and its workspace module is set to match the compositor.
-;;; Returns a home-xdg-configuration-files entry for the style.
-
 (define-module (dots home services waybar)
   #:use-module (guix gexp)
   #:use-module (ice-9 format)
@@ -12,12 +7,11 @@
             waybar-capability))
 
 (define (waybar-style theme)
-  "Return the waybar style.css contents themed from THEME."
   (define (c role) (theme-color theme role))
   (define radpx (string-append (number->string (shape-radius (theme-shape theme))) "px"))
   (css
-   `(("*" (font-family . ,(format #f "~s, monospace" (fonts-mono (theme-fonts theme))))
-          (font-size . "14px"))
+   `(("*" (font-family . (\, (format #f "~s, monospace" (fonts-mono (theme-fonts theme)))))
+      (font-size . "14px"))
      ("window#waybar" (background-color . ,(c 'bg)) (color . ,(c 'fg))
       (transition . "background-color 0.2s"))
      ("#workspaces button" (background-color . ,(c 'bg-alt)) (color . ,(c 'fg))
