@@ -50,7 +50,6 @@ the echo strip becomes a designed status line with an accent prompt segment."
 Read top-down: tunables, then bar, popups, control panel; the overrides are
 appended last so the cascade picks them."
   (define (c role) (theme-color theme role))
-  ;; --- tunables: change here, not in scattered literals ---------------------
   (define mono     (format #f "~s" (fonts-mono (theme-fonts theme))))
   (define cell     "40px")   ; bar icon cell: every clickable icon is this wide
   (define cell-pad "9px 0")  ; ... vertical only; width comes from `cell'
@@ -59,7 +58,11 @@ appended last so the cascade picks them."
   (define popup-rad "20px")  ; popup window corner
   (define card-rad  "15px")  ; inner card / list / config corner
   (define shadow      "0 2px 6px 2px #0a0a10")
-  (define card-shadow "0 2px 3px 2px #06060b")
+  (define glass       (hex->rgba (c 'bg) 0.72))
+  (define glass-card  (hex->rgba (c 'bg-dim) 0.5))
+  (define glass-inset (hex->rgba (c 'bg) 0.4))
+  (define glass-edge  (string-append "1px solid " (c 'border)))
+  (define glass-sh    "0 0 5px 0 #0a0a10")
   (css
    (append
     `(;; reset + global font; transitions on the interactive bits
@@ -71,22 +74,23 @@ appended last so the cascade picks them."
        (padding . "8px 0") (margin . "6px")
        (border-radius . "16px") (box-shadow . ,shadow))
 
-      ;; one uniform cell for every clickable bar icon
-      (".viewer, .picker, .launch, .apps .app, .icon, .net, .media, .ctl, .workspaces .ws"
+      (".bgroup" (background-color . ,glass-card)
+       (border-radius . "16px") (padding . "6px 4px"))
+
+      (".viewer, .picker, .launch, .grp-apps .app, .icon, .net, .media, .ctl, .workspaces .ws"
        (background-color . ,(c 'bg-alt)) (color . ,(c 'fg-alt))
        (min-width . ,cell) (padding . ,cell-pad)
        (border-radius . ,cell-rad) (margin . "3px 0")
        (font-size . ,glyph))
       (".net" (color . ,(c 'cyan)))
       (".ctl" (color . ,(c 'accent)))
-      ;; per-glyph ink-bearing correction, nudging each to the ~33px column
       (".viewer .bar-glyph" (margin-right . "2px"))
       (".picker .bar-glyph" (margin-right . "2px"))
-      (".launch .bar-glyph" (margin-right . "3px"))
-      (".term .bar-glyph" (margin-right . "1px"))
-      (".web .bar-glyph" (margin-right . "3px"))
-      (".files .bar-glyph" (margin-right . "3px"))
-      (".edit .bar-glyph" (margin-right . "6px"))
+      (".launch .bar-glyph" (margin-right . "0px"))
+      (".term .bar-glyph" (margin-right . "0px"))
+      (".web .bar-glyph" (margin-right . "0px"))
+      (".files .bar-glyph" (margin-right . "0px"))
+      (".edit .bar-glyph" (margin-right . "0px"))
       (".icon .bar-glyph" (margin-right . "3px"))
       (".media .bar-glyph" (margin-right . "5px"))
       (".net .bar-glyph" (margin-right . "6px"))
@@ -94,7 +98,7 @@ appended last so the cascade picks them."
       (".workspaces .ws .bar-glyph" (margin-left . "2px"))
       (".workspaces .ws.current" (color . ,(c 'accent-fg)) (background-color . ,(c 'accent)))
 
-      (".viewer:hover, .picker:hover, .launch:hover, .apps .app:hover, .icon:hover, .net:hover, .media:hover, .ctl:hover, .clock:hover, .workspaces .ws:hover"
+      (".viewer:hover, .picker:hover, .launch:hover, .grp-apps .app:hover, .icon:hover, .net:hover, .media:hover, .ctl:hover, .clock:hover, .workspaces .ws:hover"
        (background-color . ,(c 'bg-active)) (color . ,(c 'accent-fg)))
 
       (".clock" (color . ,(c 'fg)) (margin-top . "6px"))
@@ -102,18 +106,19 @@ appended last so the cascade picks them."
       (".clock .min" (color . ,(c 'fg-dim)) (font-size . "15px"))
 
       ;; ---- calendar --------------------------------------------------------
-      (".cal-box" (background-color . ,(c 'bg-alt)) (border-radius . ,card-rad) (padding . "10px"))
+      (".cal-box" (background-color . ,glass-card) (border-radius . ,card-rad) (padding . "10px"))
       ("calendar" (color . ,(c 'fg)))
       ("calendar:selected" (background-color . ,(c 'accent)) (color . ,(c 'accent-fg)))
 
       ;; ---- popup chrome shared by every menu -------------------------------
-      (".netmenu" (background-color . ,(c 'bg)) (color . ,(c 'fg))
+      (".netmenu" (background-color . ,glass) (color . ,(c 'fg))
+       (border . ,glass-edge)
        (border-radius . ,popup-rad) (padding . "8px") (margin . "8px")
-       (box-shadow . ,shadow) (min-width . "360px"))
+       (box-shadow . ,glass-sh) (min-width . "360px"))
 
       ;; ---- network menu (card style) ---------------------------------------
-      (".nm-card" (background-color . ,(c 'bg-dim)) (border-radius . "16px")
-       (padding . "12px") (margin . "6px") (box-shadow . ,card-shadow))
+      (".nm-card" (background-color . ,glass-card) (border-radius . ,card-rad)
+       (padding . "12px") (margin . "6px"))
       (".nm-head" (padding . "12px 14px"))
       (".nm-head-ico" (font-size . "22px") (color . ,(c 'accent)) (margin-right . "14px"))
       (".nm-title" (font-size . "17px") (font-weight . "bold") (color . ,(c 'fg)))
@@ -177,15 +182,15 @@ appended last so the cascade picks them."
 
       ;; ---- control panel: cards (profile / stats / sliders) ----------------
       (".ctlpanel-box" (padding . "4px"))
-      (".ctl-card" (background-color . ,(c 'bg-dim)) (border-radius . "16px")
-       (padding . "14px") (margin . "6px") (box-shadow . ,card-shadow))
+      (".ctl-card" (background-color . ,glass-card) (border-radius . ,card-rad)
+       (padding . "14px") (margin . "6px"))
       (".ctl-profile" (padding . "2px"))
       (".ctl-pfp" (background-color . ,(c 'bg-active)) (border-radius . "100%")
        (min-width . "58px") (min-height . "58px") (margin-right . "16px"))
       (".ctl-pfp-ico" (font-size . "28px") (color . ,(c 'accent)))
       (".ctl-user" (font-size . "24px") (font-weight . "bold") (color . ,(c 'accent)))
       (".ctl-uptime" (color . ,(c 'fg-dim)))
-      (".ctl-power" (background-color . ,(c 'bg)) (border-radius . "14px")
+      (".ctl-power" (background-color . ,glass-inset) (border-radius . "14px")
        (padding . "12px 8px") (margin-top . "14px"))
       (".ctl-power .pw-a" (font-size . "22px") (padding . "4px 12px") (transition . "color 0.25s"))
       (".ctl-power .lock" (color . ,(c 'blue)))
@@ -197,7 +202,7 @@ appended last so the cascade picks them."
 
       ;; rings
       (".ctl-rings" (padding . "4px 0"))
-      (".ctl-ring-box" (background-color . ,(c 'bg)) (border-radius . "14px")
+      (".ctl-ring-box" (background-color . ,glass-inset) (border-radius . "14px")
        (padding . "10px 8px") (margin . "0 4px"))
       (".ctl-ring" (background-color . ,(c 'bg-active)) (border-radius . "100px") (margin-top . "4px"))
       (".ctl-ring.cpu" (color . ,(c 'red)))
@@ -205,6 +210,9 @@ appended last so the cascade picks them."
       (".ctl-ring.disk" (color . ,(c 'green)))
       (".ctl-ring.temp" (color . ,(c 'yellow)))
       (".ctl-ring-ico" (font-size . "18px") (margin . "14px"))
+      (".ctl-ring-box.cpu .ctl-ring-ico"  (margin-left . "11px") (margin-right . "17px"))
+      (".ctl-ring-box.ram .ctl-ring-ico"  (margin-left . "11px") (margin-right . "17px"))
+      (".ctl-ring-box.disk .ctl-ring-ico" (margin-left . "11px") (margin-right . "17px"))
       (".ctl-ring-box.cpu .ctl-ring-ico, .ctl-ring-box.cpu .ctl-ring-lbl" (color . ,(c 'red)))
       (".ctl-ring-box.ram .ctl-ring-ico, .ctl-ring-box.ram .ctl-ring-lbl" (color . ,(c 'blue)))
       (".ctl-ring-box.disk .ctl-ring-ico, .ctl-ring-box.disk .ctl-ring-lbl" (color . ,(c 'green)))
@@ -237,7 +245,7 @@ appended last so the cascade picks them."
   (call-with-input-file path get-string-all))
 
 (define (drop-includes text)
-  "Remove `(include ...)' lines -- modules are concatenated, not included."
+  "Remove `(include ...)' lines"
   (string-join
    (remove (lambda (line) (string-prefix? "(include" (string-trim line)))
            (string-split text #\newline))
@@ -251,8 +259,7 @@ appended last so the cascade picks them."
 
 (define (eww-capability theme config-dir)
   "Return home-xdg-configuration-files entries for eww: the themed style, the
-layout (modules concatenated into one eww.yuck), and the babashka feeders.
-CONFIG-DIR is the dotfiles config root."
+layout (modules concatenated into one eww.yuck), and the bb service. "
   (define (curated name)
     (list (string-append "eww/" name)
           (local-file (string-append config-dir "/eww/" name))))
@@ -268,9 +275,6 @@ CONFIG-DIR is the dotfiles config root."
     ,(curated "brightness-set")))
 
 (define (home-eww-broker-shepherd-service config)
-  "Run the eww data broker (broker.bb) as a long-lived shepherd service:
-single instance, respawn, stop -- no lock files or pid juggling.  It serves an
-nREPL on 127.0.0.1:1667 that eww calls into via eww-rpc."
   (list
    (shepherd-service
     (provision '(eww-broker))
