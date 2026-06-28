@@ -1,7 +1,7 @@
 ;;; Cuirass jobset spec for the private 'bfh' channel.
 ;;;
 ;;; The 'bfh' channel re-exports custom packages from src/dots/packages/ and
-;;; is published at https://git.lab.local/bfh/dots.git (module root 'src/'
+;;; is published at https://github.com/bretfh/dots (module root 'src/'
 ;;; per .guix-channel).
 ;;;
 ;;; The jobs are emitted by src/dots/ci/cuirass-jobs.scm -- one job per
@@ -27,7 +27,7 @@
             (#:load-path . ".")
             (#:branch    . "master"))
            ((#:name      . "bfh")
-            (#:url       . "https://git.lab.local/bfh/dots.git")
+            (#:url       . "https://github.com/bretfh/dots")
             (#:load-path . "src")
             (#:branch    . "main"))))
        (#:build-outputs . ()))))
