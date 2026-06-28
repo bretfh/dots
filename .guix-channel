@@ -1,4 +1,4 @@
 (channel
  (version 0)
  (directory "src")
- (url "https://git.lab.local/bfh/dots.git"))
+ (url "https://github.com/bretfh/dots"))

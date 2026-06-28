@@ -14,12 +14,14 @@
     (bottom)))
 
 (defwidget top []
-  (box :orientation "v" :valign "start" :hexpand true :space-evenly false :spacing 8
-    (ib :class "viewer" :onclick "niri msg action toggle-overview"
-        :hint "Overview" :glyph "")
-    (ib :class "picker" :onclick "cd ~ && setsid -f bb ~/.config/eww/niri-window-switch.bb"
-        :hint "Search windows" :glyph "")
-    (workspaces-w)))
+  (box :orientation "v" :valign "start" :hexpand true :space-evenly false :spacing 12
+    (box :class "bgroup grp-overview" :orientation "v" :space-evenly false
+      (ib :class "viewer" :onclick "niri msg action toggle-overview"
+          :hint "Overview" :glyph "󰋁"))
+    (box :class "bgroup grp-nav" :orientation "v" :space-evenly false :spacing 6
+      (ib :class "picker" :onclick "cd ~ && setsid -f bb ~/.config/eww/niri-window-switch.bb"
+          :hint "Search windows" :glyph "")
+      (workspaces-w))))
 
 (defwidget workspaces-w []
   (box :class "workspaces" :orientation "v" :halign "center" :space-evenly false :spacing 4
@@ -30,22 +32,22 @@
           :glyph "${ws.idx}"))))
 
 (defwidget middle []
-  (box :class "apps" :orientation "v" :valign "center" :hexpand true :space-evenly false :spacing 8
-    (ib :class "launch" :onclick "setsid -f fuzzel"             :hint "Applications" :glyph "")
-    (ib :class "app term"  :onclick "setsid -f alacritty"          :hint "Terminal"     :glyph "")
-    (ib :class "app web"   :onclick "setsid -f google-chrome"      :hint "Browser"      :glyph "")
-    (ib :class "app files" :onclick "setsid -f nautilus"           :hint "Files"        :glyph "")
-    (ib :class "app edit" :onclick "cd ~ && emacsclient -c -n" :hint "Editor"  :glyph "")))
+  (box :class "bgroup grp-apps" :orientation "v" :valign "center" :hexpand true :space-evenly false :spacing 8
+    (ib :class "launch"    :onclick "setsid -f fuzzel"            :hint "Applications" :glyph "󰀻")
+    (ib :class "app term"  :onclick "setsid -f alacritty"         :hint "Terminal"     :glyph "")
+    (ib :class "app web"   :onclick "setsid -f google-chrome"     :hint "Browser"      :glyph "")
+    (ib :class "app files" :onclick "setsid -f nautilus"          :hint "Files"        :glyph "")
+    (ib :class "app edit"  :onclick "cd ~ && emacsclient -c -n"   :hint "Editor"       :glyph "")))
 
 (defwidget bottom []
-  (box :orientation "v" :valign "end" :hexpand true :space-evenly false :spacing 10
-    (ib :class "icon" :onclick "bash ~/.config/eww/menu-toggle audioctl" :hint "Volume"
-        :glyph {sys.muted ? "" : ""})
-    (ib :class "media" :onclick "bash ~/.config/eww/menu-toggle mediactl" :hint "Media" :glyph "")
-    (ib :class "net" :onclick "bash ~/.config/eww/menu-toggle netctl" :hint "Network" :glyph "")
-    (ib :class "ctl" :onclick "bash ~/.config/eww/menu-toggle ctlpanel" :hint "System" :glyph "")
+  (box :orientation "v" :valign "end" :hexpand true :space-evenly false :spacing 12
+    (box :class "bgroup grp-tray" :orientation "v" :space-evenly false :spacing 10
+      (ib :class "icon" :onclick "bash ~/.config/eww/menu-toggle audioctl" :hint "Volume"
+          :glyph {sys.muted ? "" : ""})
+      (ib :class "media" :onclick "bash ~/.config/eww/menu-toggle mediactl" :hint "Media" :glyph "")
+      (ib :class "net" :onclick "bash ~/.config/eww/menu-toggle netctl" :hint "Network" :glyph "")
+      (ib :class "ctl" :onclick "bash ~/.config/eww/menu-toggle ctlpanel" :hint "System" :glyph ""))
     (clock)))
-
 
 (defwidget clock []
   (eventbox :class "ibx" :halign "center"
