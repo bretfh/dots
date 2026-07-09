@@ -1,10 +1,5 @@
 ;; -*- lexical-binding: t -*-
-;; (require 'eieio-core)
-;; (require  'eieio)
-;; (require 'eieio-base)
-;; (require 'cl-lib)
-;; (require 'dash)
-;;; init ---- uxmax: emacs the ultimate
+;;; init: an emacs config
 (add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
 
 ;;; Core settings ----
@@ -41,10 +36,10 @@
       (set-frame-position (selected-frame) 0 0)
       (set-frame-size (selected-frame) 120 40)))))
 
-;;;; terminal specific -- applied PER FRAME, never globally at load. Under the
-;;;; emacs daemon (display-graphic-p) is nil at init, so the old unconditional
-;;;; (set-face-background 'default "unspecified-bg") poisoned the global default
-;;;; face and made every later GUI frame fail with (error "Undefined color").
+;; terminal specific -- applied PER FRAME, never globally at load. Under the
+;; emacs daemon (display-graphic-p) is nil at init, so the old unconditional
+;; (set-face-background 'default "unspecified-bg") poisoned the global default
+;; face and made every later GUI frame fail with (error "Undefined color").
 (defun xterm-title-update ()
   (interactive)
   (send-string-to-terminal (concat "\033]1; " (buffer-name) "\007"))
@@ -145,8 +140,6 @@ global default face the daemon's GUI frames inherit."
         dired-recursive-copies 'always 
         dired-recursive-deletes 'always
         dired-listing-switches "-Ahl --group-directories-first")
-
-
 ;;;; general visuals
 (display-time-mode)
 (display-battery-mode)
@@ -617,7 +610,6 @@ global default face the daemon's GUI frames inherit."
   (corfu-auto-delay 0.1)
   (corfu-quit-no-match 'separator)
   (corfu-excluded-modes '(term eshell org-mode mu4e-compose-mode)))
-
 
 ;;; VC/Git
 ;;;; magit
@@ -675,6 +667,29 @@ global default face the daemon's GUI frames inherit."
   (devdocs #'(lambda () (kill-local-variable 'truncate-lines))))
 
 ;;; UI ---- general look and feel
+;;;;; side bar
+(require 'vscode-icon)
+(setq tool-bar-position 'left)
+;; Clear existing toolbar
+(setq tool-bar-map (make-sparse-keymap))
+(tool-bar-add-item "file_type_git"
+                   'magit-status
+                   'magit-status
+                   :help "Git Status"
+                   :image (find-image
+                           `((:type png
+                                    :file ,(expand-file-name "file_type_git.png"
+                                                             (concat vscode-icon-dir "23"))))))
+
+(tool-bar-add-item "folder_type_folder"
+                   'dirvish
+                   'dirvish
+                   :help "File Explorer"
+                   :image (find-image
+                           `((:type png
+                                    :file ,(expand-file-name "folder_type_common.png"
+                                                             (concat vscode-icon-dir "23"))))))
+
 ;;;;; breadcrumbs/filepath in header line
 (use-package breadcrumb
   :ensure (:host github :repo "joaotavora/breadcrumb")
@@ -1468,7 +1483,6 @@ function."
 
 ;;;;; highlight defined objects in buffers
 (use-package highlight-defined
-  :ensure t
   :custom
   (highlight-defined-face-use-itself t)
   :hook
@@ -1476,12 +1490,12 @@ function."
   (emacs-lisp-mode . highlight-defined-mode))
 
 (use-package highlight-quoted
-  :ensure t
   :hook
   (emacs-lisp-mode . highlight-quoted-mode))
 
 (use-package highlight-sexp
-  :ensure (:host github :repo "daimrod/highlight-sexp")
+  ;; :ensure (:host github :repo "daimrod/highlight-sexp")
+  :disabled
   :hook
   (clojure-mode . highlight-sexp-mode)
   (emacs-lisp-mode . highlight-sexp-mode)
@@ -1506,7 +1520,7 @@ function."
 
 ;;;;; provide input and output to explore functions as an answer from emacs
 (use-package suggest
-  :defer t)
+  :defer 5)
 
 ;;;;; inline evaluation overlay
 (use-package eros
@@ -1542,7 +1556,7 @@ function."
 (setq eglot-extend-to-xref t)
 (use-package markdown-ts-mode
   :mode ("\\.md\\'" . markdown-ts-mode)
-  :defer 't)
+  :defer 10)
 
 ;;;; rust
 (use-package rustic
@@ -1691,8 +1705,7 @@ function."
 ;; Additional useful packages for Lisp development
 (use-package lispy
   :ensure nil
-  :hook ((emacs-lisp-mode lisp-mode scheme-mode clojure-mode fennel-mode)
-         . lispy-mode))
+  :demand t)
 
 (use-package lispyville
   :ensure nil
@@ -1778,29 +1791,6 @@ function."
 ;;   :config
 ;;   (add-to-list 'sly-contribs 'sly-asdf 'append))
 ;; (setq inferior-lisp-program "ros -Q run")
-(require 'vscode-icon)
-
-(setq tool-bar-position 'bottom)
-;; Clear existing toolbar
-(setq tool-bar-map (make-sparse-keymap))
-(tool-bar-add-item "file_type_git"
-                   'magit-status
-                   'magit-status
-                   :help "Git Status"
-                   :image (find-image
-                           `((:type png
-                                    :file ,(expand-file-name "file_type_git.png"
-                                                             (concat vscode-icon-dir "23"))))))
-
-(tool-bar-add-item "folder_type_folder"
-                   'dirvish
-                   'dirvish
-                   :help "File Explorer"
-                   :image (find-image
-                           `((:type png
-                                    :file ,(expand-file-name "folder_type_common.png"
-                                                             (concat vscode-icon-dir "23"))))))
-
 ;;;; nix
 (use-package nix-mode
   :defer t
@@ -1851,14 +1841,12 @@ function."
   ((go-mode . eglot-ensure)
    (go-mode . eglot-format-buffer-before-save)
    (go-mode . eglot-organize-imports-before-save)))
-;;;; jupyter notebook (disabled)
+;;;; jupyter notebook
 (use-package jupyter
   :disabled
   :config
   (setq jupyter-eval-use-overlays t)
   (setq jupyter-repl-echo-eval-p t))
-
-
 ;;; Notes/Docs
 ;;;; TODO: add marksmanlsp/markdown
 (use-package org
@@ -1932,6 +1920,8 @@ function."
 
 
 ;;; Multimedia
+
+
 ;;;; ready-player ---- simple 
 (use-package ready-player
   :after transient
@@ -2216,8 +2206,6 @@ WRAP-WIDTH defaults to 80 if not provided."
       (goto-char (point-min)))
     (switch-to-buffer buf)))
 ;;; Experiments
-;; (provide 'modern-status-bar)
-;;;;;;;;;;;;
 ;;(require 'vc)
 ;;(require 'flycheck)
 ;;(require 'cider)
@@ -2304,47 +2292,7 @@ WRAP-WIDTH defaults to 80 if not provided."
 ;; (setopt modern-status-bar-height (* (line-pixel-height) 8))
 ;; (modern-status-bar-mode 1)
 
-;;; Custom interface
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(custom-safe-themes
-   '("972174133853f03fd25edfa6fb614d7708459d87d15fdb90fbb6da928a532f0d"
-     "0a2168af143fb09b67e4ea2a7cef857e8a7dad0ba3726b500c6a579775129635"
-     "1bb8300c70034e287e222a529214eff80825474d79f98203517d13f5ff98cbe8"
-     "f5723a6bcce8be0d90c759a0cf82bbfa7acfdd9739ef9c3c9248cf74b180d86f" default))
- '(org-export-backends '(ascii html icalendar latex md odt))
- '(package-selected-packages nil nil nil "Customized with use-package emacs")
- '(package-vc-selected-packages
-   '((combobulate :vc-backend Git :url "https://github.com/mickeynp/combobulate")
-     (gptel-aibo :vc-backend Git :url "https://github.com/dolmens/gptel-aibo")
-     (nova :vc-backend Git :url "https://github.com/thisisran/nova")
-     (ultra-scroll :vc-backend Git :url
-                   "https://github.com/jdtsmith/ultra-scroll")
-     (indent-bars :vc-backend Git :url "https://github.com/jdtsmith/indent-bars")))
- '(vertico-posframe-width 107))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(header-line-highlight ((t :box (:color "#d0d0d0"))))
- '(keycast-key ((t :box (:line-width 6 :color "#004a5f" :style nil))))
- '(line-number ((t (:inherit default))))
- '(minimap-font-face ((t (:family "BlockFont" :height 30))))
- )
-;;; footer
-
-;; Local Variables:
-;; no-byte-compile: t
-;; no-native-compile: t
-;; no-update-autoloads: t
-;; End:
-
-
-;;; Create a thin border around buffers
+;; ;;; Create a thin border around buffers
 ;; Box mode configuration
 (defvar-local nano-box-cookies nil
   "Cookies to store local face modifications")
@@ -2529,7 +2477,6 @@ WRAP-WIDTH defaults to 80 if not provided."
         (goto-char (point-min))
         (switch-to-buffer buf))
     (message "No project or readable text files found.")))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; (defun my/set-frame-padding ()						      ;;
 ;;   "Set frame padding and window dividers"					      ;;
 ;;   (let ((bg-main (face-background 'default)))				      ;;
@@ -2549,17 +2496,12 @@ WRAP-WIDTH defaults to 80 if not provided."
 ;;      `(window-divider-last-pixel ((t :background ,bg-main :foreground ,bg-main)))  ;;
 ;;      ;; Make fringe match background						      ;;
 ;;      `(fringe ((t :background ,bg-main))))))					      ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 ;; (defun my/setup-ui ()
 ;;   (my/set-frame-padding)
 ;;   (global-tab-line-mode)
 ;;   (nano-box-on))
 ;;(my/setup-ui)
 ;;(add-hook 'after-init-hook #'my/setup-ui)
-;;;meh
-
-
 (defun list-project-files-with-contents ()
   (interactive)
   (let* ((files (seq-filter (lambda (f) (not (string-match-p "~$" f)))
@@ -2580,12 +2522,49 @@ WRAP-WIDTH defaults to 80 if not provided."
       (goto-char (point-min)))
     (switch-to-buffer buf)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; (set-face-attribute 'vertical-border nil			       ;;
 ;;                     :foreground "#161a2a"  ; Use your desired color ;;
 ;;                     :background "#161a2a")			       ;;
 ;; 								       ;;
 ;; (set-face-attribute 'line-number nil				       ;;
 ;;                     :background nil)				       ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Custom interface
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(custom-safe-themes
+   '("972174133853f03fd25edfa6fb614d7708459d87d15fdb90fbb6da928a532f0d"
+     "0a2168af143fb09b67e4ea2a7cef857e8a7dad0ba3726b500c6a579775129635"
+     "1bb8300c70034e287e222a529214eff80825474d79f98203517d13f5ff98cbe8"
+     "f5723a6bcce8be0d90c759a0cf82bbfa7acfdd9739ef9c3c9248cf74b180d86f" default))
+ '(org-export-backends '(ascii html icalendar latex md odt))
+ '(package-selected-packages nil nil nil "Customized with use-package emacs")
+ '(package-vc-selected-packages
+   '((combobulate :vc-backend Git :url "https://github.com/mickeynp/combobulate")
+     (gptel-aibo :vc-backend Git :url "https://github.com/dolmens/gptel-aibo")
+     (nova :vc-backend Git :url "https://github.com/thisisran/nova")
+     (ultra-scroll :vc-backend Git :url
+                   "https://github.com/jdtsmith/ultra-scroll")
+     (indent-bars :vc-backend Git :url "https://github.com/jdtsmith/indent-bars")))
+ '(vertico-posframe-width 107))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(header-line-highlight ((t :box (:color "#d0d0d0"))))
+ '(keycast-key ((t :box (:line-width 6 :color "#004a5f" :style nil))))
+ '(line-number ((t (:inherit default))))
+ '(minimap-font-face ((t (:family "BlockFont" :height 30))))
+ )
+;;; footer
+
+;; Local Variables:
+;; no-byte-compile: t
+;; no-native-compile: t
+;; no-update-autoloads: t
+;; End:
 
