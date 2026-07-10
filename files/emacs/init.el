@@ -42,10 +42,11 @@
 ;; face and made every later GUI frame fail with (error "Undefined color").
 (defun xterm-title-update ()
   (interactive)
-  (send-string-to-terminal (concat "\033]1; " (buffer-name) "\007"))
-  (if buffer-file-name
-      (send-string-to-terminal (concat "\033]2; " (buffer-file-name) "\007"))
-    (send-string-to-terminal (concat "\033]2; " (buffer-name) "\007"))))
+  (unless (display-graphic-p)
+    (send-string-to-terminal (concat "\033]1; " (buffer-name) "\007"))
+    (if buffer-file-name
+        (send-string-to-terminal (concat "\033]2; " (buffer-file-name) "\007"))
+      (send-string-to-terminal (concat "\033]2; " (buffer-name) "\007")))))
 
 (defun terminal-frame-setup (&optional frame)
   "Apply terminal-only tweaks to FRAME, leaving GUI frames untouched.
@@ -668,27 +669,6 @@ global default face the daemon's GUI frames inherit."
 
 ;;; UI ---- general look and feel
 ;;;;; side bar
-(require 'vscode-icon)
-(setq tool-bar-position 'left)
-;; Clear existing toolbar
-(setq tool-bar-map (make-sparse-keymap))
-(tool-bar-add-item "file_type_git"
-                   'magit-status
-                   'magit-status
-                   :help "Git Status"
-                   :image (find-image
-                           `((:type png
-                                    :file ,(expand-file-name "file_type_git.png"
-                                                             (concat vscode-icon-dir "23"))))))
-
-(tool-bar-add-item "folder_type_folder"
-                   'dirvish
-                   'dirvish
-                   :help "File Explorer"
-                   :image (find-image
-                           `((:type png
-                                    :file ,(expand-file-name "folder_type_common.png"
-                                                             (concat vscode-icon-dir "23"))))))
 
 ;;;;; breadcrumbs/filepath in header line
 (use-package breadcrumb
@@ -1005,6 +985,7 @@ global default face the daemon's GUI frames inherit."
 (use-package catppuccin-theme
   :ensure nil
   :init 
+  ;;TODO
   (defun my/catppuccin-color (name)
     "Get color from catppuccin theme."
     (let ((colors '((base     . "#1e1e2e")  ; Default background
@@ -1017,7 +998,12 @@ global default face the daemon's GUI frames inherit."
                     (blue    . "#89b4fa"))))
       (cdr (assoc name colors))))
   :config
-  (load-theme 'catppuccin t))
+  (defun my/enable-catppuccin (&rest _)
+    (unless (memq 'catppuccin custom-enabled-themes)
+      (load-theme 'ef-dream t)))
+  (if (daemonp)
+      (add-hook 'server-after-make-frame-hook #'my/enable-catppuccin)
+    (my/enable-catppuccin)))
 
 ;;;; Tab bar and tab line 
 (use-package tab-bar
@@ -1705,7 +1691,10 @@ function."
 ;; Additional useful packages for Lisp development
 (use-package lispy
   :ensure nil
-  :demand t)
+  :init
+  (setq lispy-key-theme '(lispy c-digits))
+  :hook ((emacs-lisp-mode lisp-mode scheme-mode clojure-mode fennel-mode)
+         . lispy-mode))
 
 (use-package lispyville
   :ensure nil
@@ -1713,6 +1702,7 @@ function."
   :hook ((emacs-lisp-mode lisp-mode scheme-mode
                           clojure-mode clojurescript-mode fennel-mode)
          . lispyville-mode)
+  
   :init
   (setq lispyville-key-theme
         '((operators normal visual)
@@ -2396,43 +2386,68 @@ WRAP-WIDTH defaults to 80 if not provided."
 ;; (sly-eval `,(sly-pprint-eval-last-expression))
 
 
-;; 1. Create our custom tool-bar map
-(defvar my-toolbar-map
-  (let ((map (make-sparse-keymap)))
-    ;; Add Git status button
-    (tool-bar-local-item
-     "file_type_git"
-     'magit-status
-     'git
-     map
-     :help "Git Status"
-     :image (find-image
-             `((:type png
-                      :file ,(expand-file-name "file_type_git.png"
-                                               (concat vscode-icon-dir "23"))))))
+;; Tool-bar icons: transparent Maple NF nerd glyphs over the GTK tool-bar,
+;; whose colour dots pins via #emacs-toolbar in gtk.css (read back below).
+(require 'svg)
 
-    ;; Add Dirvish button
-    (tool-bar-local-item
-     "folder_type_folder"
-     'dirvish
-     'folder
-     map
-     :help "File Explorer"
-     :image (find-image
-             `((:type png
-                      :file ,(expand-file-name "folder_type_common.png"
-                                               (concat vscode-icon-dir "23"))))))
-    map))
+(defun my/open-init ()
+  (interactive)
+  (find-file user-init-file))
 
-;; 2. Set up the global binding
+(defvar my/toolbar-actions
+  '(("nf-cod-files"          dirvish          "Explorer")
+    ("nf-cod-search"         consult-ripgrep  "Search")
+    ("nf-cod-source_control" magit-status     "Source Control")
+    ("nf-cod-terminal"       eat              "Terminal")
+    ("nf-cod-extensions"     elpaca-manager   "Packages")
+    ("nf-cod-settings_gear"  my/open-init     "Settings"))
+  "Each entry: (CODICON COMMAND HELP). Add a line to add a button.")
+
+(defun my/nerd-toolbar-image (codicon fg)
+  "Transparent SVG of nerd CODICON in Maple Mono NF, glyph in FG."
+  (let* ((glyph (nerd-icons-codicon codicon))
+         (px 24)
+         (svg (svg-create px px)))
+    (svg-text svg glyph
+              :font-family "Maple Mono NF"
+              :font-size 18
+              :fill fg :text-anchor "middle"
+              :x (/ px 2) :y 19)
+    (svg-image svg :ascent 'center :scale 1)))
+
+(defun my/gtk-toolbar-bg ()
+  (let ((f (expand-file-name "gtk-3.0/gtk.css" (getenv "XDG_CONFIG_HOME"))))
+    (when (file-readable-p f)
+      (with-temp-buffer
+        (insert-file-contents f)
+        (goto-char (point-min))
+        (when (re-search-forward
+               "#emacs-toolbar[^}]*background-color:[ \t]*\\(#[0-9a-fA-F]+\\)" nil t)
+          (match-string 1))))))
+
+(defun my/rebuild-toolbar (&rest _)
+  "Build the tool-bar; match the `tool-bar' face to the GTK widget colour."
+  (let ((bg (or (my/gtk-toolbar-bg) (face-attribute 'default :background nil t)))
+        (fg (face-attribute 'default :foreground nil t))
+        (map (make-sparse-keymap)))
+    (dolist (a my/toolbar-actions)
+      (pcase-let ((`(,icon ,cmd ,help) a))
+        (tool-bar-local-item icon cmd (intern icon) map
+                             :image (my/nerd-toolbar-image icon fg)
+                             :help help)))
+    (setq-default tool-bar-map map)
+    (set-face-attribute 'tool-bar nil :background bg)))
+
 (global-set-key [tool-bar]
                 `(menu-item "tool bar" ignore
-                            :filter (lambda (_) my-toolbar-map)))
+                            :filter (lambda (_) (default-value 'tool-bar-map))))
 
-;; 3. Apply our toolbar map globally
-(setq-default tool-bar-map my-toolbar-map)
-(setq tool-bar-map my-toolbar-map)
-(setq tool-bar-position 'bottom)
+(setq tool-bar-position 'left
+      tool-bar-style 'image)
+
+;; Rebuild once a frame exists (daemon), and whenever the theme changes.
+(add-hook 'server-after-make-frame-hook #'my/rebuild-toolbar 95)
+(add-hook 'enable-theme-functions #'my/rebuild-toolbar)
 
 
 (defun text-file-p (filename)

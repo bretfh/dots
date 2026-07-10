@@ -23,7 +23,7 @@
            (lines . 12)
            (layer . overlay)
            (terminal . "alacritty -e"))
-     (colors (background . ,(rgba 'bg "e6"))
+     (colors (background . ,(rgba 'bg (alpha-hex (shape-opacity shape))))
              (text . ,(rgba 'fg "ff"))
              (prompt . ,(rgba 'accent "ff"))
              (placeholder . ,(rgba 'fg-dim "ff"))

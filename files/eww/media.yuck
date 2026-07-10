@@ -1,29 +1,29 @@
 (defwidget media-player []
-  (box :class "netmenu" :orientation "v" :space-evenly false
-    (box :class "nm-card nm-head" :orientation "h" :space-evenly false :valign "center"
-      (label :class "nm-head-ico" :text "")
-      (box :orientation "v" :valign "center" :hexpand true :space-evenly false
-        (label :class "nm-title" :halign "start" :text "Media")
-        (label :class {media.status == "Playing" ? "nm-sub on" : "nm-sub off"} :halign "start"
-               :text {media.status != "Stopped" ? media.status : "Idle"})))
-    (revealer :reveal {media.status != "Stopped"} :transition "crossfade" :duration "250ms"
-      (box :class "nm-card" :orientation "v" :space-evenly false
-        (box :class "media-info" :orientation "h" :space-evenly false :spacing 14 :valign "center"
-          (box :class "media-art" :halign "center" :valign "center"
-               :style "background-image: url('${media.art}');"
-            (label :class "media-art-ico" :text {media.art == "" ? "" : ""}))
-          (box :orientation "v" :space-evenly false :valign "center" :hexpand true
-            (label :class "media-title"  :halign "start" :limit-width 24 :text {media.title})
-            (label :class "media-artist" :halign "start" :limit-width 28 :text {media.artist})))
-        (scale :class "menu-slider media-seek" :value {media.pos ?: 0} :min 0
-               :max {media.length > 0 ? media.length : 1}
-               :onchange "emacsclient -e '(emms-seek-to {})'")
-        (box :class "media-times" :orientation "h" :space-evenly false
-          (label :class "media-time" :halign "start" :hexpand true :text {media.posStr ?: "0:00"})
-          (label :class "media-time" :halign "end" :text {media.lenStr ?: "0:00"}))
-        (box :class "media-ctrl" :orientation "h" :halign "center" :space-evenly false :spacing 28
-          (button :class "media-btn" :onclick "emacsclient -e '(emms-previous)'" "")
-          (button :class "media-btn" :onclick "emacsclient -e '(emms-pause)'" {media.status == "Playing" ? "" : ""})
-          (button :class "media-btn" :onclick "emacsclient -e '(emms-next)'" ""))))
-    (box :visible {media.status == "Stopped"} :class "media-none-box"
-      (label :class "media-none" :text "Nothing playing"))))
+           (box :class "netmenu" :orientation "v" :space-evenly false
+                (box :class "nm-card nm-head" :orientation "h" :space-evenly false :valign "center"
+                     (label :class "nm-head-ico" :text "")
+                     (box :orientation "v" :valign "center" :hexpand true :space-evenly false
+                          (label :class "nm-title" :halign "start" :text "Media")
+                          (label :class {media.status == "Playing" ? "nm-sub on" : "nm-sub off"} :halign "start"
+                                 :text {media.status != "Stopped" ? media.status : "Idle"})))
+                (revealer :reveal {media.status != "Stopped"} :transition "crossfade" :duration "250ms"
+                          (box :class "nm-card" :orientation "v" :space-evenly false
+                               (box :class "media-info" :orientation "h" :space-evenly false :spacing 14 :valign "center"
+                                    (box :class "media-art" :halign "center" :valign "center"
+                                         :style "background-image: url('${media.art}');"
+                                         (label :class "media-art-ico" :text {media.art == "" ? "" : ""}))
+                                    (box :orientation "v" :space-evenly false :valign "center" :hexpand true
+                                         (label :class "media-title"  :halign "start" :limit-width 24 :text {media.title})
+                                         (label :class "media-artist" :halign "start" :limit-width 28 :text {media.artist})))
+                               (scale :class "menu-slider media-seek" :value {media.pos ?: 0} :min 0
+                                      :max {media.length > 0 ? media.length : 1}
+                                      :onchange "emacsclient -e '(emms-seek-to {})'")
+                               (box :class "media-times" :orientation "h" :space-evenly false
+                                    (label :class "media-time" :halign "start" :hexpand true :text {media.posStr ?: "0:00"})
+                                    (label :class "media-time" :halign "end" :text {media.lenStr ?: "0:00"}))
+                               (box :class "media-ctrl" :orientation "h" :halign "center" :space-evenly false :spacing 28
+                                    (button :class "media-btn" :onclick "emacsclient -e '(emms-previous)'" "")
+                                    (button :class "media-btn" :onclick "emacsclient -e '(emms-pause)'" {media.status == "Playing" ? "" : ""})
+                                    (button :class "media-btn" :onclick "emacsclient -e '(emms-next)'" ""))))
+                (box :visible {media.status == "Stopped"} :class "media-none-box"
+                     (label :class "media-none" :text "Nothing playing"))))

@@ -56,7 +56,7 @@
   (append (map specification->package
                '("openssh"
                  "sway" "niri" "swaylock" "swayidle" "wlgreet"
-                 "xorg-server-xwayland" "alacritty"
+                 "xorg-server-xwayland" "xwayland-satellite" "alacritty"
                  "pipewire" "wireplumber" "pavucontrol"
                  "wofi" "wl-clipboard" "mako"
                  "network-manager" "network-manager-applet"

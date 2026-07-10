@@ -45,9 +45,9 @@
       (ib :class "icon" :onclick "bash ~/.config/eww/menu-toggle audioctl" :hint "Volume"
           :glyph {sys.muted ? "" : ""})
       (ib :class "media" :onclick "bash ~/.config/eww/menu-toggle mediactl" :hint "Media" :glyph "")
-      (ib :class "net" :onclick "bash ~/.config/eww/menu-toggle netctl" :hint "Network" :glyph "")
-      (ib :class "ctl" :onclick "bash ~/.config/eww/menu-toggle ctlpanel" :hint "System" :glyph ""))
-    (clock)))
+      (ib :class "net" :onclick "bash ~/.config/eww/menu-toggle netctl" :hint "Network" :glyph ""))
+    (clock)
+    (corner)))
 
 (defwidget clock []
   (eventbox :class "ibx" :halign "center"
@@ -56,6 +56,14 @@
       (box :orientation "v" :space-evenly false
         (label :class "hour" :text hour)
         (label :class "min"  :text minute)))))
+
+;; the ctrl tile: a colourful square in the corner gap between the sidebar and
+;; the echo, opening the system panel.
+(defwidget corner []
+  (eventbox :class "ibx" :halign "center"
+            :onhover "eww update hint='System'" :onhoverlost "eww update hint=''"
+    (button :class "corner-sq" :halign "center" :onclick "bash ~/.config/eww/menu-toggle ctlpanel"
+      (label :class "bar-glyph" :text ""))))
 
 (defwidget cal []
   (box :class "cal-box"

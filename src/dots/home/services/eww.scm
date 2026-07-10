@@ -19,31 +19,31 @@
             home-eww-broker-service-type))
 
 (define (eww-style-overrides theme)
-  "Trailing rules appended after the main sheet so the cascade picks them: the
-sidebar reads as frosted glass over the wallpaper instead of a solid slab, and
-the echo strip becomes a designed status line with an accent prompt segment."
+  "Trailing rules appended after the main sheet so the cascade picks them. The
+real blur comes from the niri layer-rule on the gtk-layer-shell namespace, so
+the bar and the echo are one semitransparent glass wash for that blur to show
+through. They are square and seamless (no border, no shadow, no CSS rounding);
+the only rounded corner is the inner one, on the accent corner box at the L's
+vertex, which carries the digital clock and the system panel."
   (define (c role) (theme-color theme role))
-  ;; echo: a powerline status line. The strip itself is transparent; only the
-  ;; accent cap and the body carry colour, so it reads as a slanted pill that
-  ;; ramps out from under the sidebar rather than a full-width box.
-  (define body  (hex->rgba (c 'bg) 0.88))
-  (define wedge "26px")                       ; glyph size ~ strip height
-  `((".bar" (background-color . ,(hex->rgba (c 'bg) 0.72))
-            (border . ,(string-append "1px solid " (c 'border)))
-            ;; blur only, no spread, kept within the 6px margin so the halo's
-            ;; corners stay rounded instead of being clipped square.
-            (box-shadow . "0 0 5px 0 #0a0a10"))
-    (".echo" (background-color . "transparent"))
-    (".echo-lead" (min-width . "70px") (background-color . "transparent"))
-    (".echo-tip" (color . ,(c 'accent)) (background-color . "transparent")
-                 (font-size . ,wedge) (margin-right . "-1px"))
-    (".echo-prompt" (background-color . ,(c 'accent)) (color . ,(c 'accent-fg)))
-    (".echo-ico" (color . ,(c 'accent-fg)) (font-size . "13px") (padding . "0 6px"))
-    (".echo-slant" (color . ,(c 'accent)) (background-color . ,body)
-                   (font-size . ,wedge) (margin . "0 -1px"))
-    (".echo-body" (background-color . ,body))
+  (define glass (hex->rgba (c 'bg) (shape-opacity (theme-shape theme))))
+  `((".bar" (background-color . ,glass) (margin . "0")
+            (border . "none") (border-radius . "0") (box-shadow . "none"))
+    ;; the echo is its own glass strip, NOT fused to the sidebar: the lead is a
+    ;; transparent gap so the sidebar and the echo read as two separate pieces.
+    (".echo" (background-color . "transparent") (box-shadow . "none"))
+    (".echo-lead" (min-width . "44px") (background-color . "transparent"))
+    (".echo-body" (background-color . ,glass))
     (".echo-text" (color . ,(c 'fg)) (font-size . "13px") (padding . "0 12px"))
-    (".echo-stat" (color . ,(c 'fg-dim)) (font-size . "12px") (padding . "0 16px 0 8px"))))
+    (".echo-stat" (color . ,(c 'fg-dim)) (font-size . "12px") (padding . "0 16px 0 8px"))
+    ;; ctrl tile: a colourful gradient square in the bottom-left corner gap.
+    (".corner-sq" (background-image . ,(string-append
+                    "linear-gradient(135deg, " (c 'accent) ", " (c 'magenta) ")"))
+                  (min-width . "28px") (min-height . "28px")
+                  (border-radius . "9px") (margin . "4px 0 0 0"))
+    (".corner-sq .bar-glyph" (color . ,(c 'accent-fg)) (font-size . "15px"))
+    (".corner-sq:hover" (background-image . ,(string-append
+                    "linear-gradient(135deg, " (c 'magenta) ", " (c 'accent) ")")))))
 
 (define (eww-style theme)
   "Return the eww eww.scss themed from THEME, as CSS over a data description.
@@ -51,16 +51,18 @@ Read top-down: tunables, then bar, popups, control panel; the overrides are
 appended last so the cascade picks them."
   (define (c role) (theme-color theme role))
   (define mono     (format #f "~s" (fonts-mono (theme-fonts theme))))
-  (define cell     "40px")   ; bar icon cell: every clickable icon is this wide
-  (define cell-pad "9px 0")  ; ... vertical only; width comes from `cell'
-  (define cell-rad "12px")
-  (define glyph    "16px")   ; uniform bar glyph size
-  (define popup-rad "20px")  ; popup window corner
-  (define card-rad  "15px")  ; inner card / list / config corner
+  (define cell     "28px")   ; bar icon cell: every clickable icon is this wide
+  (define cell-pad "8px 0")  ; ... vertical only; width comes from `cell'
+  (define rad      (string-append (number->string (shape-radius (theme-shape theme))) "px"))
+  (define op       (shape-opacity (theme-shape theme)))
+  (define cell-rad rad)
+  (define glyph    "15px")   ; uniform bar glyph size
+  (define popup-rad rad)
+  (define card-rad  rad)
   (define shadow      "0 2px 6px 2px #0a0a10")
-  (define glass       (hex->rgba (c 'bg) 0.72))
-  (define glass-card  (hex->rgba (c 'bg-dim) 0.5))
-  (define glass-inset (hex->rgba (c 'bg) 0.4))
+  (define glass       (hex->rgba (c 'bg) op))
+  (define glass-card  (hex->rgba (c 'bg-dim) op))
+  (define glass-inset (hex->rgba (c 'bg) op))
   (define glass-edge  (string-append "1px solid " (c 'border)))
   (define glass-sh    "0 0 5px 0 #0a0a10")
   (css
@@ -71,14 +73,14 @@ appended last so the cascade picks them."
 
       ;; ---- bar -------------------------------------------------------------
       (".bar" (background-color . ,(c 'bg)) (color . ,(c 'fg))
-       (padding . "8px 0") (margin . "6px")
-       (border-radius . "16px") (box-shadow . ,shadow))
+       (padding . "8px 0 0 0") (margin . "6px")
+       (border-radius . ,rad) (box-shadow . ,shadow))
 
-      (".bgroup" (background-color . ,glass-card)
-       (border-radius . "16px") (padding . "6px 4px"))
+      (".bgroup" (background-color . "transparent")
+       (border-radius . ,rad) (padding . "6px 4px"))
 
       (".viewer, .picker, .launch, .grp-apps .app, .icon, .net, .media, .ctl, .workspaces .ws"
-       (background-color . ,(c 'bg-alt)) (color . ,(c 'fg-alt))
+       (background-color . "transparent") (color . ,(c 'fg-alt))
        (min-width . ,cell) (padding . ,cell-pad)
        (border-radius . ,cell-rad) (margin . "3px 0")
        (font-size . ,glyph))
@@ -129,7 +131,7 @@ appended last so the cascade picks them."
       (".nm-scroll" (min-height . "14rem"))
       (".nm-row" (background-color . "transparent") (border . "none")
        (box-shadow . "none") (outline . "none")
-       (border-radius . "12px") (padding . "10px 12px") (margin . "2px")
+       (border-radius . ,rad) (padding . "10px 12px") (margin . "2px")
        (transition . "background-color 0.2s"))
       (".nm-row:hover" (background-color . ,(c 'bg-active)))
       (".nm-row.active" (background-color . ,(c 'bg-alt)))
@@ -146,7 +148,7 @@ appended last so the cascade picks them."
       (".nm-actions" (padding . "6px 4px 2px 4px"))
       (".nm-btn" (background-color . ,(c 'bg-active)) (color . ,(c 'fg))
        (border . "none") (box-shadow . "none") (outline . "none")
-       (padding . "10px 20px") (border-radius . "12px")
+       (padding . "10px 20px") (border-radius . ,rad)
        (transition . "background-color 0.2s, color 0.2s"))
       (".nm-btn:hover" (background-color . ,(c 'bg-alt)))
       (".nm-btn.go" (background-color . ,(c 'accent)) (color . ,(c 'accent-fg)))
@@ -167,7 +169,7 @@ appended last so the cascade picks them."
       ;; ---- media player (card vocabulary) ----------------------------------
       (".media-info" (padding . "2px 2px 12px 2px"))
       (".media-art" (min-width . "64px") (min-height . "64px")
-       (border-radius . "12px") (background-size . "cover")
+       (border-radius . ,rad) (background-size . "cover")
        (background-position . "center") (background-color . ,(c 'bg-active)))
       (".media-art-ico" (font-size . "26px") (color . ,(c 'fg-dim)))
       (".media-title" (font-size . "15px") (font-weight . "bold") (color . ,(c 'fg)))
@@ -190,7 +192,7 @@ appended last so the cascade picks them."
       (".ctl-pfp-ico" (font-size . "28px") (color . ,(c 'accent)))
       (".ctl-user" (font-size . "24px") (font-weight . "bold") (color . ,(c 'accent)))
       (".ctl-uptime" (color . ,(c 'fg-dim)))
-      (".ctl-power" (background-color . ,glass-inset) (border-radius . "14px")
+      (".ctl-power" (background-color . ,glass-inset) (border-radius . ,rad)
        (padding . "12px 8px") (margin-top . "14px"))
       (".ctl-power .pw-a" (font-size . "22px") (padding . "4px 12px") (transition . "color 0.25s"))
       (".ctl-power .lock" (color . ,(c 'blue)))
@@ -199,10 +201,17 @@ appended last so the cascade picks them."
       (".ctl-power .suspend" (color . ,(c 'cyan)))
       (".ctl-power .off" (color . ,(c 'red)))
       (".ctl-power .pw-a:hover" (color . ,(c 'fg)))
+      (".ctl-confirm" (background-color . ,glass-inset) (border-radius . ,rad)
+       (padding . "10px 8px") (margin-top . "14px"))
+      (".ctl-confirm-lbl" (color . ,(c 'fg)) (font-size . "14px") (font-weight . "bold"))
+      (".ctl-cf" (font-size . "18px") (padding . "4px 14px") (transition . "color 0.2s"))
+      (".ctl-cf.yes" (color . ,(c 'green)))
+      (".ctl-cf.no" (color . ,(c 'red)))
+      (".ctl-cf:hover" (color . ,(c 'fg)))
 
       ;; rings
       (".ctl-rings" (padding . "4px 0"))
-      (".ctl-ring-box" (background-color . ,glass-inset) (border-radius . "14px")
+      (".ctl-ring-box" (background-color . ,glass-inset) (border-radius . ,rad)
        (padding . "10px 8px") (margin . "0 4px"))
       (".ctl-ring" (background-color . ,(c 'bg-active)) (border-radius . "100px") (margin-top . "4px"))
       (".ctl-ring.cpu" (color . ,(c 'red)))

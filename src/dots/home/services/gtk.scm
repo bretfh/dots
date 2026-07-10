@@ -28,19 +28,23 @@ UI font, from THEME."
 (define (gtk3-css theme)
   "Return gtk-3.0/gtk.css: override GTK3's named theme colours from THEME."
   (define (c role) (theme-color theme role))
-  (define-colors
-    `((theme_bg_color . ,(c 'bg))
-      (theme_base_color . ,(c 'bg-dim))
-      (theme_fg_color . ,(c 'fg))
-      (theme_text_color . ,(c 'fg))
-      (theme_selected_bg_color . ,(c 'accent))
-      (theme_selected_fg_color . ,(c 'accent-fg))
-      (insensitive_bg_color . ,(c 'bg-dim))
-      (insensitive_fg_color . ,(c 'fg-dim))
-      (borders . ,(c 'border))
-      (warning_color . ,(c 'yellow))
-      (error_color . ,(c 'red))
-      (success_color . ,(c 'green)))))
+  (string-append
+   (define-colors
+     `((theme_bg_color . ,(c 'bg))
+       (theme_base_color . ,(c 'bg-dim))
+       (theme_fg_color . ,(c 'fg))
+       (theme_text_color . ,(c 'fg))
+       (theme_selected_bg_color . ,(c 'accent))
+       (theme_selected_fg_color . ,(c 'accent-fg))
+       (insensitive_bg_color . ,(c 'bg-dim))
+       (insensitive_fg_color . ,(c 'fg-dim))
+       (borders . ,(c 'border))
+       (warning_color . ,(c 'yellow))
+       (error_color . ,(c 'red))
+       (success_color . ,(c 'green))))
+   ;; Pin Emacs's pgtk tool-bar widget (named "emacs-toolbar") to the theme
+   ;; bg so its SVG icons blend into it. Matched by the Emacs tool-bar face.
+   "\n#emacs-toolbar { background-color: " (c 'bg) "; }\n"))
 
 (define (gtk4-css theme)
   "Return gtk-4.0/gtk.css: override libadwaita's named colours from THEME, so

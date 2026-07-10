@@ -95,6 +95,8 @@
         emacs-highlight-sexp
         emacs-highlight-numbers
         emacs-highlight-escape-sequences
+        emacs-highlight-quoted
+        emacs-highlight-defined
         emacs-sly
         emacs-sly-asdf
         emacs-org

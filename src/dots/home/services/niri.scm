@@ -105,6 +105,9 @@ editor, so the keys agree with the rest of the session."
 (define default-niri-startups
   (list (desktop-launch-bar default-desktop)
         "mako"
+        (string-append "swayidle -w timeout 600 "
+                       "'sh ~/.config/gtklock/lock -d' "
+                       "before-sleep 'sh ~/.config/gtklock/lock -d'")
         (format #f "dbus-update-activation-environment --systemd \
 WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
                 (desktop-xdg-name default-desktop))
@@ -148,6 +151,31 @@ WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
     (clip-to-geometry true)
     (draw-border-with-background false)))
 
+;;; Real compositor blur behind the eww layer-shell surfaces. The bar, the echo
+;;; strip, and every eww popup share the gtk-layer-shell namespace, so one rule
+;;; gives them all the same glass. x-ray blur is the default and costs nothing
+;;; here: the bar and echo are exclusive, so only the wallpaper is ever behind
+;;; them, and niri blurs that once and reuses it.
+(define (layer-rule-node theme)
+  ;; Bar + echo are square (radius 0) so their outer edges meet the screen and
+  ;; each other seamlessly; any rounding is done in CSS on the accent corner
+  ;; box. xray false blurs the real content below the surface (the wallpaper
+  ;; layer + windows), not niri's empty transparent backdrop.
+  `(layer-rule
+    (match (@ (namespace "gtk-layer-shell")))
+    (match (@ (namespace "notifications")))
+    (match (@ (namespace "launcher")))
+    (geometry-corner-radius 0)
+    (background-effect (blur true) (xray false))))
+
+;;; The eww popups (network / audio / media / control) live on the overlay
+;;; layer; keep their blur clipped to the same 20px radius as their CSS corners
+;;; so the rounded popups are not boxed off by a square blur.
+(define (layer-rule-popup-node theme)
+  `(layer-rule
+    (match (@ (namespace "gtk-layer-shell") (layer "overlay")))
+    (geometry-corner-radius 20)))
+
 (define (niri-intro)
   "// GENERATED ")
 
@@ -163,7 +191,9 @@ WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
          (list 'screenshot-path "~/pictures/screenshots/screen-%Y-%m-%d-%H-%M-%S.png")
          '(animations (slowdown 1.0))
          (cons 'binds bindings)
-         (window-rule-node theme))
+         (window-rule-node theme)
+         (layer-rule-node theme)
+         (layer-rule-popup-node theme))
    (map (lambda (cmd) (list 'spawn-sh-at-startup cmd)) startups)))
 
 

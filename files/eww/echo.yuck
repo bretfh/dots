@@ -1,10 +1,6 @@
 (defwidget echo-bar []
   (box :class "echo" :orientation "h" :halign "fill" :valign "fill" :space-evenly false
     (box :class "echo-lead")
-    (label :class "echo-tip" :text "")
-    (box :class "echo-prompt" :valign "fill" :halign "center" :space-evenly false
-      (label :class "echo-ico" :text {hint != "" ? "" : ""}))
-    (label :class "echo-slant" :text "")
     (box :class "echo-body" :orientation "h" :hexpand true :space-evenly false :valign "fill"
       (label :class "echo-text" :halign "start" :hexpand true :limit-width 110
              :text {hint != "" ? hint

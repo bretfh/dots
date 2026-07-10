@@ -15,8 +15,8 @@
             fonts fonts?
             fonts-mono fonts-sans fonts-size
             shape shape?
-            shape-gaps shape-radius shape-border
-            hex->rgba))
+            shape-gaps shape-radius shape-border shape-opacity
+            hex->rgba alpha-hex))
 
 (define-record-type* <fonts> fonts make-fonts
   fonts?
@@ -26,9 +26,10 @@
 
 (define-record-type* <shape> shape make-shape
   shape?
-  (gaps   shape-gaps   (default 22))
-  (radius shape-radius (default 8))
-  (border shape-border (default 2)))
+  (gaps    shape-gaps    (default 22))
+  (radius  shape-radius  (default 8))
+  (border  shape-border  (default 2))
+  (opacity shape-opacity (default 0.4)))
 
 ;;; The colours alist must define every role below, so any consumer can
 ;;; rely on them: surfaces (bg bg-dim bg-alt bg-active bg-inactive), text
@@ -61,3 +62,8 @@ ALPHA in [0, 1]."
     (string->number (substring hex start (+ start 2)) 16))
   (format #f "rgba(~a, ~a, ~a, ~a)"
           (channel 1) (channel 3) (channel 5) alpha))
+
+(define (alpha-hex alpha)
+  "Convert opacity ALPHA in [0, 1] to a two-digit hex byte, for #rrggbbaa."
+  (let ((s (number->string (inexact->exact (round (* alpha 255))) 16)))
+    (if (= (string-length s) 1) (string-append "0" s) s)))

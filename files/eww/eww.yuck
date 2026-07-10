@@ -1,6 +1,6 @@
 (defwindow bar
   :monitor 0
-  :geometry (geometry :x "0" :y "0" :width "64px" :height "100%" :anchor "left center")
+  :geometry (geometry :x "0" :y "0" :width "32px" :height "100%" :anchor "left center")
   :stacking "fg"
   :exclusive true
   :focusable "none"
@@ -63,6 +63,8 @@
 (defvar hint "")
 (defvar netactions "[]")
 (defvar netsel "")
+(defvar pwcmd "")
+(defvar pwlabel "")
 (defpoll user   :interval "1h"  "id -un")
 (defpoll uptime :interval "60s" "awk '{h=int($1/3600);m=int(($1%3600)/60);printf \"up %dh %dm\",h,m}' /proc/uptime")
 

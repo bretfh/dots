@@ -7,12 +7,19 @@
         (box :orientation "v" :valign "center" :hexpand true :space-evenly false
           (label :class "ctl-user" :halign "start" :text user)
           (label :class "ctl-uptime" :halign "start" :limit-width 28 :text uptime)))
-      (box :class "ctl-power" :orientation "h" :halign "fill" :space-evenly true
-        (eventbox :class "pw-a lock" :cursor "pointer" :onhover "eww update hint='Lock screen'" :onhoverlost "eww update hint=''" :onclick "eww close ctlpanel ; setsid -f swaylock" (label :text ""))
-        (eventbox :class "pw-a logout" :cursor "pointer" :onhover "eww update hint='Log out of niri'" :onhoverlost "eww update hint=''" :onclick "niri msg action quit" (label :text ""))
-        (eventbox :class "pw-a reboot" :cursor "pointer" :onhover "eww update hint='Reboot'" :onhoverlost "eww update hint=''" :onclick "systemctl reboot" (label :text ""))
-        (eventbox :class "pw-a suspend" :cursor "pointer" :onhover "eww update hint='Suspend'" :onhoverlost "eww update hint=''" :onclick "eww close ctlpanel ; systemctl suspend" (label :text ""))
-        (eventbox :class "pw-a off" :cursor "pointer" :onhover "eww update hint='Power off'" :onhoverlost "eww update hint=''" :onclick "systemctl poweroff" (label :text ""))))
+      (box :class "ctl-power-wrap" :orientation "v" :space-evenly false
+        (revealer :reveal {pwcmd == ""} :transition "crossfade" :duration "120ms"
+          (box :class "ctl-power" :orientation "h" :halign "fill" :space-evenly true
+            (eventbox :class "pw-a lock" :cursor "pointer" :onhover "eww update hint='Lock screen'" :onhoverlost "eww update hint=''" :onclick "eww close ctlpanel ; cd ~ && setsid -f sh ~/.config/gtklock/lock" (label :text ""))
+            (eventbox :class "pw-a logout" :cursor "pointer" :onhover "eww update hint='Log out of niri'" :onhoverlost "eww update hint=''" :onclick "eww update pwcmd='niri msg action quit' pwlabel='Log out'" (label :text ""))
+            (eventbox :class "pw-a reboot" :cursor "pointer" :onhover "eww update hint='Reboot'" :onhoverlost "eww update hint=''" :onclick "eww update pwcmd='loginctl reboot' pwlabel='Reboot'" (label :text ""))
+            (eventbox :class "pw-a suspend" :cursor "pointer" :onhover "eww update hint='Suspend'" :onhoverlost "eww update hint=''" :onclick "eww close ctlpanel ; loginctl suspend" (label :text ""))
+            (eventbox :class "pw-a off" :cursor "pointer" :onhover "eww update hint='Power off'" :onhoverlost "eww update hint=''" :onclick "eww update pwcmd='loginctl poweroff' pwlabel='Power off'" (label :text ""))))
+        (revealer :reveal {pwcmd != ""} :transition "crossfade" :duration "120ms"
+          (box :class "ctl-confirm" :orientation "h" :valign "center" :space-evenly false
+            (label :class "ctl-confirm-lbl" :hexpand true :halign "center" :text "${pwlabel}?")
+            (button :class "ctl-cf yes" :onclick "${pwcmd} ; eww update pwcmd='' pwlabel=''" (label :text ""))
+            (button :class "ctl-cf no" :onclick "eww update pwcmd='' pwlabel=''" (label :text ""))))))
     (box :class "ctl-card" :orientation "v" :space-evenly false
       (box :class "ctl-rings" :orientation "h" :halign "center" :space-evenly true
         (ring :icon "" :cls "cpu"  :val {round(EWW_CPU.avg, 0)} :name "CPU")
@@ -34,9 +41,3 @@
     (circular-progress :class "ctl-ring ${cls}" :value {val > 100 ? 100 : val} :thickness 5
       (label :class "ctl-ring-ico" :text icon))
     (label :class "ctl-ring-lbl" :text "${name} ${val}${cls == 'temp' ? 'C' : '%'}")))
-
-;; A powerline status line: a transparent strip whose left end runs under the
-;; sidebar (echo-lead), then a slanted accent cap (echo-tip ramps it out of the
-;; sidebar, echo-slant feeds into the body), then the message and a live
-;; system readout. `hint' is what any component reports on hover; idle it falls
-;; back to the focused window title, then user@host.

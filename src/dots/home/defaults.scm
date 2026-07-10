@@ -19,6 +19,8 @@
   #:use-module (dots home services waybar)
   #:use-module (dots home services fuzzel)
   #:use-module (dots home services eww)
+  #:use-module (dots home services mako)
+  #:use-module (dots home services gtklock)
   #:use-module (dots home services gtk)
   #:use-module (dots home desktop)
   #:use-module (dots assets)
@@ -59,6 +61,7 @@
             (list "guile" "guile-colorized" "guile-readline" "babashka"
                  "coreutils" "nushell" "xz" "make" "ncurses"
                  "pkg-config" "mako" "libnotify" "slurp" "grimshot"
+                 "gtklock" "swayidle"
                  "wl-clipboard" "swaybg" "playerctl" "mpv" "git" "ripgrep" "cl-trial"
                  "sbcl-trial" "fd" "jq" "font-spleen" "font-fira-code"
                  "font-jetbrains-mono" "font-liberation" "font-dejavu"
@@ -94,6 +97,8 @@
               `(("sway/config"
                  ,(local-file (string-append config-dir "/sway/.config/sway")))
                 ,@(eww-capability default-theme config-dir)
+                ,@(mako-capability default-theme)
+                ,@(gtklock-capability default-theme)
                 ,@(gtk-capability default-theme)
                 ,@(if (eq? (desktop-terminal default-desktop) 'alacritty)
                       (alacritty-capability default-theme)

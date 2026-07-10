@@ -9,6 +9,7 @@
   #:use-module (gnu services dbus)
   #:use-module (gnu services ssh)
   #:use-module (gnu services virtualization)
+  #:use-module (gnu system pam)
   #:use-module (guix gexp)
   #:use-module (dots system users)
   #:use-module (dots system services lgeh)
@@ -76,6 +77,8 @@
     '((jellyfin-forward 8096 "10.20.0.11" 8096)))
    (list (simple-service 'nm-wifi-scan-polkit polkit-service-type
                          (list nm-wifi-scan-polkit))
+         (simple-service 'gtklock-pam pam-root-service-type
+                         (list (unix-pam-service "gtklock")))
          (simple-service 'static-resolv-conf etc-service-type
                          (list (list "resolv.conf"
                                      (plain-file "resolv.conf"
@@ -84,9 +87,15 @@
                   (libvirt-configuration
                    (unix-sock-group "libvirt")))
          (service virtlog-service-type)
-         ;; (service openssh-service-type
-         ;;          (openssh-configuration
-         ;;           (port-number 2226)
-         ;;           (password-authentication? #t)
-         ;;           (permit-root-login #f)))
+         ;; Static-qemu binfmt so guix can build aarch64 derivations inside the
+         ;; daemon sandbox (rg34xxsp images). The manual dynamic-qemu handler
+         ;; could not run in the chroot.
+         (service qemu-binfmt-service-type
+                  (qemu-binfmt-configuration
+                   (platforms (lookup-qemu-platforms "aarch64"))))
+         (service openssh-service-type
+                  (openssh-configuration
+                   (port-number 2226)
+                   (password-authentication? #t)
+                   (permit-root-login #f)))
          )))

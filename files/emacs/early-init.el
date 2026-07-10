@@ -46,7 +46,8 @@
               (setq file-name-handler-alist file-name-handler-alist-old)))
 
 (push '(menu-bar-lines . 0) default-frame-alist)
-(push '(tool-bar-lines . 0) default-frame-alist)
+(push '(tool-bar-lines . 1) default-frame-alist)
+(push '(tool-bar-position . left) default-frame-alist)
 (push '(vertical-scroll-bars . nil) default-frame-alist)
 (push '(horizontal-scroll-bars . nil) default-frame-alist)
 
