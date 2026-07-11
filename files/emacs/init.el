@@ -573,7 +573,6 @@ global default face the daemon's GUI frames inherit."
   :ensure nil
   :config
   (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-silent)
-  (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-purify)
   (add-to-list 'completion-at-point-functions #'cape-file))
 
 ;;;; marginalia
@@ -725,10 +724,10 @@ global default face the daemon's GUI frames inherit."
   (defun my/create-header-svg (crumb-str context-str)
     (let* ((width (window-pixel-width))
            (svg (svg-create width my/total-height))
-           (background (catppuccin-color 'base))
-           (text-color (catppuccin-color 'subtext1))
-           (accent-color (catppuccin-color 'blue))
-           (highlight-color (catppuccin-color 'lavender)))
+           (background (face-attribute 'default :background nil t))
+           (text-color (face-attribute 'shadow :foreground nil t))
+           (accent-color (face-attribute 'font-lock-keyword-face :foreground nil t))
+           (highlight-color (face-attribute 'font-lock-function-name-face :foreground nil t)))
       
       (svg-rectangle svg 0 0 width my/total-height :fill background)
       
@@ -982,28 +981,15 @@ global default face the daemon's GUI frames inherit."
   :bind ([remap ispell-word] . jinx-correct)
   :config (setq jinx-languages "en_US"))
 
-(use-package catppuccin-theme
+(use-package ef-themes
   :ensure nil
-  :init 
-  ;;TODO
-  (defun my/catppuccin-color (name)
-    "Get color from catppuccin theme."
-    (let ((colors '((base     . "#1e1e2e")  ; Default background
-                    (mantle   . "#181825")   ; Slightly darker than base
-                    (surface0 . "#313244")   ; Subtle contrast
-                    (surface1 . "#45475a")   ; Light contrast
-                    (overlay0 . "#6c7086")   ; Muted text
-                    (text    . "#cdd6f4")    ; Primary text
-                    (lavender . "#b4befe")   ; Accents
-                    (blue    . "#89b4fa"))))
-      (cdr (assoc name colors))))
   :config
-  (defun my/enable-catppuccin (&rest _)
-    (unless (memq 'catppuccin custom-enabled-themes)
+  (defun my/load-theme (&rest _)
+    (unless (memq 'ef-dream custom-enabled-themes)
       (load-theme 'ef-dream t)))
   (if (daemonp)
-      (add-hook 'server-after-make-frame-hook #'my/enable-catppuccin)
-    (my/enable-catppuccin)))
+      (add-hook 'server-after-make-frame-hook #'my/load-theme)
+    (my/load-theme)))
 
 ;;;; Tab bar and tab line 
 (use-package tab-bar
