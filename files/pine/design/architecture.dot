@@ -1,0 +1,89 @@
+digraph pine {
+  rankdir=TB; splines=true; concentrate=false;
+  graph [fontname="sans-serif", fontsize=22, ranksep=0.9, nodesep=0.55,
+         compound=true, bgcolor="#1e1e2e", labelloc=t, fontcolor="#f9e2af",
+         label="pine — one SBCL image: parallel-Lisp substrate, two surfaces"];
+  node  [fontname="sans-serif", fontsize=15, shape=box, style="rounded,filled",
+         color="#585b70", fontcolor="#cdd6f4", fillcolor="#313244", margin="0.2,0.12"];
+  edge  [fontname="sans-serif", fontsize=13, color="#89b4fa", fontcolor="#bac2de", penwidth=1.3];
+
+  subgraph cluster_image {
+    label="one SBCL image"; labeljust=l; fontsize=18; fontcolor="#f9e2af"; color="#6c7086"; style="rounded"; penwidth=2;
+
+    subgraph cluster_sub {
+      label="substrate"; fontsize=16; fontcolor="#89b4fa"; color="#45475a"; style="rounded";
+      sys  [label="sento actor-system\nworker pool · remoting", fillcolor="#2a2b3d"];
+      regs [label="server registries\nbuffers · modes · commands\nfaces · layouts · ts-runtime · agents", fillcolor="#2a2b3d"];
+      cli  [label="client (session)\nwindows · frame(cells) · kill-ring\ncompletion · current-buffer · terminal-map", fillcolor="#2a2b3d"];
+    }
+
+    subgraph cluster_data {
+      label="data + reactive"; fontcolor="#a6e3a1"; color="#45475a"; style="rounded";
+      buf  [label="buffer actors\n(state·undo·redo·subs·hl)\nimmutable fset → snapshots", fillcolor="#28322b"];
+      cell [label="reactive cells (pine.cell)\ndedup · auto-track · subscribers", fillcolor="#28322b"];
+      src  [label="sources (pine.source)\nevent-stream → set-cell", fillcolor="#28322b"];
+    }
+
+    subgraph cluster_editor {
+      label="editor"; fontcolor="#a6e3a1"; color="#45475a"; style="rounded";
+      disp [label="dispatch\nkey → minibuffer/terminal hooks\n→ keymaps → command → execute", fillcolor="#28322b"];
+      mode [label="modes (CLOS+MOP)\nbase·text·lisp·repl·terminal + minor", fillcolor="#28322b"];
+      tsx  [label="tree-sitter (pine.ts)\nCFFI · highlights · sexp-nav", fillcolor="#28322b"];
+      trm  [label="terminal (pine.term)\nreader thread · bounded drain", fillcolor="#28322b"];
+      evl  [label="eval  (C-x C-e / repl / onclick)\nTODAY: runs on UI thread", fillcolor="#45313a", color="#f38ba8", fontcolor="#f5c2e7"];
+    }
+
+    subgraph cluster_render {
+      label="rendering"; fontcolor="#fab387"; color="#45475a"; style="rounded";
+      rnd  [label="renderer actor\nsubscribes buffers · ts dispatch", fillcolor="#37312a"];
+      frm  [label="render-buffer-to-frame\ntext | terminal | chrome | region\n→ cell grid", fillcolor="#37312a"];
+    }
+
+    subgraph cluster_surf {
+      label="surfaces  (<surface> protocol)"; fontcolor="#fab387"; color="#45475a"; style="rounded";
+      gtk  [label="<gtk-surface>  EDITOR\npump 16ms · gdk→key · cairo", fillcolor="#37312a"];
+      bar  [label="<layer-shell>  DESKTOP bar (pine.de)\nreactive-view · layout tree · click", fillcolor="#37312a"];
+    }
+
+    vt   [label="pine.vt emulator\nparser·sgr·ops·grid + native pty", fillcolor="#313244"];
+    prop [label="PROPOSED: evaluator actor +\nuniform evaluation object +\nsldb restart/backtrace surface",
+          style="rounded,filled,dashed", fillcolor="#232334", color="#f9e2af", fontcolor="#f9e2af"];
+  }
+
+  subgraph cluster_out {
+    label="outside the image"; labeljust=l; fontcolor="#9399b2"; color="#6c7086"; style="rounded";
+    way  [label="niri / Wayland compositor", fillcolor="#11111b", fontcolor="#a6adc8"];
+    proc [label="niri msg · pactl · nmcli\nsubprocess event streams", fillcolor="#11111b", fontcolor="#a6adc8"];
+    lib  [label="guix .so\ntree-sitter-commonlisp · pine-pty\ngtk4-layer-shell · libtree-sitter · GTK", fillcolor="#11111b", fontcolor="#a6adc8"];
+    agt  [label="remote SBCL agents\nactor mesh (spawn stale)", fillcolor="#11111b", fontcolor="#f5c2e7", color="#f38ba8"];
+  }
+
+  // editor flow
+  gtk  -> disp [label="key"];
+  disp -> mode [style=dotted];
+  disp -> buf  [label="edit msg"];
+  buf  -> rnd  [label="snapshot\n(on change)"];
+  rnd  -> frm;
+  frm  -> gtk  [label="cell grid"];
+  gtk  -> way  [label="cairo"];
+
+  // reactive / desktop flow
+  proc -> src  [label="stream"];
+  src  -> cell [label="set-cell"];
+  cell -> bar  [label="notify→view"];
+  frm  -> bar  [style=dotted, label="layout→cells"];
+  bar  -> way  [label="cairo (layer-shell)"];
+  bar  -> proc [label="onclick action", constraint=false, color="#94e2d5"];
+
+  // terminal + ts
+  trm  -> vt   [dir=both];
+  vt   -> frm  [style=dotted];
+  vt   -> lib  [label="pty", dir=both, constraint=false];
+  tsx  -> lib  [label="grammar", dir=both, constraint=false];
+  tsx  -> buf  [style=dotted, label="highlights"];
+
+  // remoting + eval
+  sys  -> agt  [label="remoting", style=dashed, dir=both, color="#f38ba8"];
+  prop -> evl  [label="replaces", style=dashed, dir=back, color="#f9e2af"];
+  gtk  -> lib  [style=dotted, label="cl-gtk4"];
+}

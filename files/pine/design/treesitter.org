@@ -1,0 +1,113 @@
+#+TITLE: pine tree-sitter
+#+AUTHOR: Bret Horne
+
+Describes what src/ts.lisp actually does. Supersedes the old hecl plan (ECL
+c-inline + a ts-wrapper.c C shim + .dylib grammars from homebrew); none of that
+was built.
+
+* Bindings
+
+Raw CFFI (cffi:defcfun) to libtree-sitter, in one file, no C wrapper.
+tree-sitter returns TSNode (and TSQueryCapture, which embeds one) by value;
+cffi-libffi handles by-value struct returns and arguments, so the shim the old
+plan needed is gone. TSNode's context[4] array is flattened to four :uint32
+scalars because CFFI has no by-value translation for an array member; the fields
+are never read from Lisp, only passed back to ts_node_*.
+
+libtree-sitter itself is the Guix "tree-sitter" package, loaded by name.
+
+* Grammars and queries
+
+*grammars* maps a language keyword to (library c-fn query-relpath):
+
+| language    | library                   | fn                     |
+|-------------+---------------------------+------------------------|
+| :commonlisp | libtree-sitter-commonlisp | tree_sitter_commonlisp |
+| :scheme     | libtree-sitter-scheme     | tree_sitter_scheme     |
+
+Grammar shared libraries are Guix packages (see guix/tree-sitter-commonlisp.scm)
+loaded off the search path by name; Guix puts them under lib/tree-sitter/, not
+lib/, so grammar-library-candidates checks there plus pine's own tree. Highlight
+queries ship in-tree under queries/<lang>/highlights.scm and are read at load.
+
+* Runtime
+
+- ts-runtime : libs-loaded flag + a languages hash. One per server (server
+  slot ts-runtime).
+- ts-entry   : a loaded language = parser + compiled query + capture-id->name
+  cache.
+- ensure-ts       loads libtree-sitter once.
+- ensure-language loads a grammar + compiles its query once, memoized in the
+  runtime. Unsupported or missing grammar/query -> nil (highlighting and motion
+  just no-op; the editor runs fine without tree-sitter).
+
+* Highlighting
+
+Gated on ts-loaded-p in the renderer actor (render.lisp), so it never runs on
+the UI thread. Flow:
+
+  buffer text
+    -> ts_parser_parse_string (full parse; UTF-8 octets, no old tree yet)
+    -> query cursor over the root node
+    -> captures: (start-byte end-byte capture-name)
+    -> capture-name-to-face, then reclassify (a :function-name that is a CL
+       special form becomes :keyword; a :variable that is a CL constant becomes
+       :constant) -- capture names alone don't know the language
+    -> byte range -> (line start-col end-col) as CHARACTER columns
+    -> list of (line start-col end-col face), stored as the buffer's :highlights
+  render:
+    build-highlight-table turns that into per-cell faces; the painter reads the
+    face RGB from face.lisp.
+
+Faces are catppuccin defaults in face.lisp. Multi-line spans are split per line
+(end-col 999 = to end of line).
+
+** byte <-> char (UTF-8)
+
+tree-sitter positions are UTF-8 byte offsets; the cell grid and point are in
+characters. build-line-index builds a per-line (start-byte . start-char) vector;
+byte-to-line-col and pos-to-byte convert both ways by walking the line's
+characters and their UTF-8 byte widths. So a multibyte character earlier on a
+line does not shift highlight columns or motion targets.
+
+* Structural navigation
+
+Each motion parses the buffer, walks the tree once, and returns a target
+position; the tree lives only for that call (call-with-root). No persistent tree
+yet.
+
+| command            | node walk                                                       |
+|--------------------+-----------------------------------------------------------------|
+| forward-sexp       | named node at point -> next named sibling's end (or parent end) |
+| backward-sexp      | mirror: previous named sibling's start                          |
+| beginning-of-defun | climb to the child of root (top-level form), its start          |
+| end-of-defun       | same form, its end                                              |
+| mark-sexp          | set mark, then forward-sexp                                     |
+
+Bound under C-M-f / C-M-b / C-M-a / C-M-e / C-M-space in text-mode. lisp-mode
+carries :ts-language :commonlisp; a buffer in it gets highlight + motion.
+
+* Threading
+
+Highlight parses run on the renderer actor. Motion parses run one-shot on the
+command path from a fresh snapshot (so a prefix count repeats correctly).
+Buffers are only ever mutated through their actor; tree-sitter reads text, never
+writes.
+
+* Not done
+
+- Incremental parsing. Every highlight is a full re-parse (old-tree is null).
+  The immutable buffer state makes an edit descriptor cheap to compute later.
+- Language injection (C inside ffi strings, SQL in strings). The grammar parses
+  the forms; merging a second parser's highlights over injected regions is the
+  next capability.
+- scheme grammar is registered but no scheme-mode is wired to a file type yet.
+
+* Dependencies
+
+| dependency                 | source                                          |
+|----------------------------+-------------------------------------------------|
+| libtree-sitter             | Guix "tree-sitter"                              |
+| cffi, cffi-libffi          | ocicl                                           |
+| tree-sitter-commonlisp .so | Guix package (guix/tree-sitter-commonlisp.scm)  |
+| queries/*/highlights.scm   | ship in-tree                                     |

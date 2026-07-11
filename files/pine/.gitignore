@@ -1,0 +1,9 @@
+ocicl/
+systems/
+*.fasl
+*.dx-fasl
+.qlot/
+*~
+\#*\#
+.\#*
+._*

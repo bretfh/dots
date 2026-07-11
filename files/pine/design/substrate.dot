@@ -1,0 +1,43 @@
+digraph substrate {
+  rankdir=LR; splines=true;
+  graph [fontname="sans-serif", fontsize=22, ranksep=1.0, nodesep=0.6,
+         bgcolor="#1e1e2e", labelloc=t, fontcolor="#f9e2af",
+         label="pine substrate — the one-way reactive cycle"];
+  node  [fontname="sans-serif", fontsize=15, shape=box, style="rounded,filled",
+         color="#585b70", fontcolor="#cdd6f4", fillcolor="#313244", margin="0.22,0.14"];
+  edge  [fontname="sans-serif", fontsize=13, color="#89b4fa", fontcolor="#bac2de", penwidth=1.4];
+
+  // producers of messages (any thread)
+  subgraph cluster_in {
+    label="any thread"; fontsize=15; fontcolor="#9399b2"; color="#45475a"; style="rounded";
+    key   [label="key input\n(UI thread)", fillcolor="#37312a"];
+    src   [label="source threads\nniri/pactl/nmcli", fillcolor="#37312a"];
+    agent [label="remote agents\n(other images)", fillcolor="#37312a", fontcolor="#f5c2e7"];
+  }
+
+  actor [label="ACTOR\nmailbox: one message at a time\n(writes serialize — no locks)",
+         fillcolor="#28322b", color="#a6e3a1", penwidth=2];
+
+  state [label="immutable state\nfset persistent seq/map + tick\n(old versions kept = undo/redo)",
+         fillcolor="#2a2b3d", color="#89b4fa"];
+
+  snap  [label="SNAPSHOT\nimmutable value handed out\n(any thread reads, lock-free)",
+         fillcolor="#2a2b3d", color="#89b4fa", penwidth=2];
+
+  subs  [label="subscribers\nrenderer actors · reactive views", fillcolor="#37312a"];
+
+  surf  [label="surface projection\ncell grid → cairo\n(editor pane · desktop bar)", fillcolor="#37312a", color="#fab387"];
+
+  // the cycle
+  key   -> actor [label="tell (msg)"];
+  src   -> actor [label="set-cell"];
+  agent -> actor [label="remote msg", style=dashed, color="#f38ba8"];
+
+  actor -> state [label="compute NEW value\n(push old → undo)"];
+  state -> snap  [label="publish"];
+  snap  -> subs  [label="notify on change\n(deduped)"];
+  subs  -> surf  [label="read snapshot → paint"];
+
+  // the loop back: UI produces the next message
+  surf  -> key [label="user acts → next msg", style=dotted, constraint=false, color="#94e2d5"];
+}

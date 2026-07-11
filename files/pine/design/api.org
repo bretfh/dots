@@ -1,0 +1,158 @@
+#+TITLE: hecl — Interactive API
+#+OPTIONS: toc:2 num:nil
+
+The runtime exposes three primitives in ~hecl.buffer~, also imported into
+the scratch default package ~hecl-user~: ~buffer~, ~ask~, ~tell~. Everything
+REPL-useful is one of these.
+
+* ~buffer~ — coerce anything to a buffer actor
+
+Signature: ~(buffer x)~ → actor or nil.
+
+| X            | Result                                                 |
+|--------------+--------------------------------------------------------|
+| ~nil~        | ~nil~                                                  |
+| string       | lookup by name in current server's buffer-table        |
+| ~:current~   | client's current-buffer                                |
+| ~:focused~   | focused window's buffer-ref                            |
+| actor        | passthrough                                            |
+
+Unknown keywords error immediately — nothing silently falls through.
+
+* ~ask~ — synchronous query
+
+Signature: ~(ask target query &rest args)~ → value.
+
+The first argument (target) selects a dispatch layer:
+
+- ~:server~ — runtime / registry introspection
+- ~:client~ — per-session state
+- anything else — coerced via ~buffer~, then buffer-level query
+
+Every target supports ~(ask TARGET :describe)~ which returns the list of
+valid queries for that target.
+
+** Server queries
+
+~(ask :server QUERY)~
+
+| query            | returns                                    |
+|------------------+--------------------------------------------|
+| ~:buffers~       | list of buffer names                       |
+| ~:clients~       | list of client instances                   |
+| ~:modes~         | list of mode keyword names                 |
+| ~:commands~      | sorted list of command name strings        |
+| ~:faces~         | the faces hash table                       |
+| ~:actor-system~  | sento actor-system                         |
+| ~:describe~      | the verb list                              |
+
+** Client queries
+
+~(ask :client QUERY)~
+
+| query              | returns                                  |
+|--------------------+------------------------------------------|
+| ~:current-buffer~  | the buffer actor                         |
+| ~:focused-window~  | window object                            |
+| ~:windows~         | list of windows                          |
+| ~:kill-ring~       | list of strings                          |
+| ~:last-command~    | command name string or nil               |
+| ~:pending-keys~    | active chord-prefix hash or nil          |
+| ~:describe~        | the verb list                            |
+
+For mode lookup: ~(ask :current :mode)~. For current-buffer name:
+~(ask :current :name)~. No duplicate shortcuts — drill through.
+
+** Buffer queries
+
+~(ask BUF QUERY &rest ARGS)~ where BUF is string, actor, ~:current~, or
+~:focused~.
+
+| query             | args                        | returns                       |
+|-------------------+-----------------------------+-------------------------------|
+| ~:state~          | —                           | buffer-state                  |
+| ~:snapshot~       | —                           | snapshot                      |
+| ~:text~           | —                           | whole buffer string           |
+| ~:meta~           | —                           | fset:map of locals            |
+| ~:name~           | —                           | name string                   |
+| ~:mode~           | —                           | mode keyword                  |
+| ~:pathname~       | —                           | file path or nil              |
+| ~:point~          | —                           | ~(values line col)~           |
+| ~:line N~         | N = positional line idx     | string                        |
+| ~:local KEY &key default~ | KEY positional        | local value or default        |
+| ~:describe~       | —                           | the verb list                 |
+
+The tail of args is always a plist; positional args come first where the
+verb takes them.
+
+* ~tell~ — send action
+
+Signature: ~(tell target tag &rest plist)~ → the coerced buffer (or nil).
+
+Coerces TARGET via ~buffer~ and sends ~(list* TAG PLIST)~ to the actor.
+~nil~ is a safe no-op.
+
+Messages the buffer actor understands:
+
+| tag                    | plist                               | effect                     |
+|------------------------+-------------------------------------+----------------------------|
+| ~:insert~              | ~:text STR~                         | insert at point            |
+| ~:newline~             | —                                   | insert newline at point    |
+| ~:backspace~           | —                                   | delete char before point   |
+| ~:delete-region~       | ~:start-line :start-col :end-line :end-col~ | delete range       |
+| ~:move-point~          | ~:line :col~                        | set point                  |
+| ~:undo~                | —                                   | pop undo ring              |
+| ~:set-local~           | ~:key :value~                       | set a buffer-local         |
+| ~:get-local~           | ~:key [:default]~ (ask-s)           | read a buffer-local        |
+| ~:get-state~           | (ask-s)                             | return buffer-state        |
+| ~:get-snapshot~        | (ask-s)                             | return snapshot            |
+| ~:get-text~            | (ask-s)                             | return whole text          |
+| ~:replace-content~     | ~:content STR~                      | replace buffer contents    |
+| ~:append-with-prompt~  | ~:text :prompt~                     | REPL output helper         |
+| ~:subscribe~           | ~:renderer REF~                     | register subscriber        |
+| ~:unsubscribe~         | ~:renderer REF~                     | remove subscriber          |
+| ~:highlights~          | ~:highlights LIST~                  | install fresh highlights   |
+
+* Examples
+
+#+begin_src lisp
+;; identity and introspection
+(ask :server :buffers)         ; => ("scratch" "*terminal*")
+(ask :server :commands)
+(ask :client :current-buffer)  ; actor ref (prints ugly, correct)
+(ask :current :name)           ; => "scratch"
+(ask :current :mode)           ; => :text-mode
+(ask "*terminal*" :meta)       ; fset:map of locals
+(ask "*terminal*" :local :pathname :default "none")
+(ask :current :describe)       ; list of buffer verbs
+
+;; mutation
+(tell :current :insert :text "hello")
+(tell :current :set-local :key :package :value :hecl-user)
+(tell "*terminal*" :move-point :line 0 :col 0)
+#+end_src
+
+* Scratch's default package
+
+The scratch buffer is pinned to ~:hecl-user~ at startup (via
+~:set-local :key :package :value :hecl-user~). ~hecl-user~ imports the
+three primitives plus common handles from ~hecl.client~ and ~hecl.mode~.
+Unqualified ~ask~, ~tell~, ~buffer~, ~current-client~, ~current-buffer~,
+~find-mode~, ~set-buffer-mode~, ~defmode~, ~eval-last-sexp~,
+~eval-buffer~ all resolve.
+
+For a different package, ~(tell :current :set-local :key :package :value
+:some-package)~.
+
+* Adding new queries
+
+Add the verb to:
+1. The corresponding ~+...-verbs+~ list (at the top of ~buffer.lisp~'s
+   API section).
+2. The ~case~ in the corresponding ~%ask-...~ function.
+
+If the verb takes positional args, use ~(first args)~; if it takes keyword
+options, use ~(getf (rest args) :key)~.
+
+Unknown verbs get a readable error listing the known set — no silent
+cascades.

@@ -1,0 +1,351 @@
+#+TITLE: pine architecture
+#+AUTHOR: Bret Horne
+#+OPTIONS: toc:3 num:t
+
+* Thesis
+
+pine is a Lisp Machine substrate realized as a supervised network of Unix
+processes.
+
+Two properties, held at once:
+
+- Within a node it is a Lisp Machine. One SBCL image is one address space of
+  live, addressable, redefinable objects: the editor, the desktop, buffers,
+  modes, and adapters are CLOS objects and fset values you inspect and redefine
+  at runtime. This is the Genera and Hemlock half.
+- Between nodes it is Erlang. sento gives every actor a uniform address, so
+  isolation, parallelism, and distribution come from Unix process boundaries
+  instead of one fragile address space. Processes are supervised; an agent may
+  crash without taking the editor with it. This is the OTP half.
+
+fset is the seam between the two halves. An immutable value is safe to share by
+reference inside one heap and safe to serialize across a wire. One data model,
+two transports. That duality is not a compromise; it is the design. It is what
+lets a computation segfault in its own image without touching the editor, the
+thing Genera could never do because it had no isolation, and the thing Emacs
+cannot do because it is one single-threaded process.
+
+The lineage is Hemlock, so the extension language is real Common Lisp on SBCL,
+not Elisp: native threads, the real compiler, the condition system, FFI. That
+is why pine can be closer to a Lisp Machine than Emacs is.
+
+* Lineage
+
+hemlock-port, hecl, and pine are three passes at this one substrate. Each pass
+discarded a stack and kept the idea.
+
+- hemlock-port: a Hemlock port on ECL with CLX/TTY/webui surfaces and a
+  hand-rolled binary wire. Discarded the binary wire (moved to sento), ECL, and
+  CLX. Kept the actor idea, the editor / eval-server split, tree-sitter, and the
+  buffer model.
+- hecl: a rebuild on ECL + LQML/QML with a mobile target. Discarded QML, ECL,
+  mobile, and roswell. Kept the sento actor network, immutable fset buffers, the
+  client / server split, the cell-grid surface, the agent registry, and the
+  layout node tree.
+- pine: SBCL, sento with remoting, fset, closer-mop, GTK4/cairo, gtk4-layer-
+  shell. Adds pine.eval and reactive cells, which are new to this pass.
+
+pine is the distillation on SBCL, sento, fset, and GTK.
+
+* Topology
+
+A node is one SBCL process, which is one sento actor-system. Everything below
+lives in a node. Multiple nodes connect by remoting.
+
+Inside a node:
+
+- the server (the durable core, owns the registries),
+- zero or more clients (sessions, each an actor),
+- buffer actors (immutable fset state),
+- the renderer (per client) and the tree-sitter actor (shared),
+- adapters (agents, data sources, and later LSP, a model, git, linters),
+- pine.eval workers (one thread per running evaluation).
+
+Everything except the user is an actor with a name and a mailbox. The user is
+external input, not an actor.
+
+* The core (server)
+
+The server is the runtime and the durable daemon. It owns the shared registries:
+buffers, commands, keymaps, faces, modes, the tree-sitter runtime, and the
+service registry. It is long lived. Clients and agents come and go around it.
+
+Server state is durable because buffers are immutable fset snapshots with
+monotonic ticks: the server persists as a snapshot plus an event log, so a
+restart rebuilds the session rather than losing it. See Persistence.
+
+* Clients and surfaces
+
+A client is a session attached to the server as an actor. It holds only
+per-session state: frame, windows, layout, mode stack, kill ring, prefix
+argument, completion state. Buffers and services are shared; the view is per
+client. Because the client is itself an addressable actor, the server pushes
+renders to it.
+
+One local client on day one. A second client is another attach. A remote client
+is the same attach over remoting. This is the tmux and emacs-daemon shape: kill
+the last client and the server keeps running; kill the server and clients
+detach.
+
+A surface is a CLOS protocol, not a window. Generics on <surface>:
+
+- present            realize and show the surface.
+- paint-frame        hand a cell grid to be painted.
+- request-redraw     schedule a repaint on the UI thread.
+- surface-metrics    cell-w, cell-h, cols, rows, from the font.
+- on-key / on-resize callbacks the surface invokes.
+
+Implementations: <gtk-surface> (the editor window: GTK4 window + drawing area +
+cairo), <layer-shell-surface> (desktop bars and panels), <test-surface>
+(headless, paints to a pixbuf or PNG for verification). The styled cell grid is
+the wire format between "Lisp builds the frame" and "the surface paints it".
+Many surfaces, one substrate. The grid is a flat ten-slot vector per cell
+[row col char fg-r fg-g fg-b bg-r bg-g bg-b bold], allocation-free to redraw.
+
+* Buffers
+
+Each buffer is an actor owning an immutable fset buffer-state: lines (a seq of
+strings), marks (a map), meta (a map of buffer-local values), and a tick. Edits
+are messages; the actor applies an edit as a pure state to state transform and
+raises the tick. Snapshots freeze a view for rendering and ride to subscribers
+on every change. Undo is free: prior states are kept, since they are immutable.
+
+The frame is built and painted on the UI thread, driven by the surface redraw
+pump reading a dirty flag. Actors only produce snapshots. render-buffer-to-frame
+is never called from an actor worker.
+
+* Modes
+
+Modes are CLOS classes and singleton instances: major-mode, minor-mode. The
+active modes for a buffer are composed, not switched. Two layers do this.
+
+** Keymap layer: which command
+
+Key events are interned (symbol plus modifier bits), eq-hashable, and usable as
+messages. Keymaps are nested-hash prefix tables with parent inheritance, so a
+chord like C-x C-f is a real prefix and a mode keymap inherits its parent's
+bindings. The active keymaps are assembled from the active modes in precedence
+order; minor keymaps shadow major, first match wins. This is the Emacs shape:
+one key resolves to one command.
+
+** Execute layer: how the active modes compose
+
+The active modes become the superclasses of a synthesized dispatch class, in
+precedence order (minors, then major, then global). The class is cached on the
+fset set of active mode classes, so identical stacks share one class. Commands
+run through a generic, execute (modes command arg), and CLOS method combination
+yields minor -> major -> global precedence with per-mode :before, :after, and
+:around methods for free.
+
+This second layer is what Emacs does not have. In Emacs the mode system decides
+which single command runs and stops there; augmenting a command is a grab bag of
+special cases (post-self-insert-hook, a variable checked inside the command,
+advice). pine decides how the active modes compose for that command.
+
+** Precedence
+
+Every minor mode carries an explicit precedence number. The active minor modes
+sort by it into both keymap search order and the execute dispatch order. So
+ordering is declared per mode, not an accident of enable order, and modal
+editing (a Helix or vim layer) is just minor modes at chosen precedence numbers
+with no engine changes. In Emacs this needs emulation-mode-map-alists to fight
+the priority list; here it is the default. Precedence is literally the class
+precedence order that drives method combination.
+
+** Transparent
+
+A transparent mode contributes to a command and then falls through to the
+command underneath, instead of shadowing it. It is a :before, :after, or :around
+method on execute, not a replacement primary. overwrite-mode is a transparent
+minor mode at precedence 10 whose execute :before on self-insert deletes the
+char under point, after which the base self-insert primary still runs. The base
+command knows nothing about overwrite. abbrev and electric-pair are the same
+shape. Transparency generalizes Emacs's hook, in-command variable, and advice
+into one mechanism: any mode can layer over any command, not only the commands
+that happen to expose a hook.
+
+Overwrite, abbrev, electric-pair, and modal editing stop being four special
+cases and become four ordinary uses of one mechanism: compose, do not switch.
+
+** Registered modes
+
+base-mode; text-mode (default); lisp-mode (derives text, ts-language
+:commonlisp, structural motion); repl-mode (RET submits, prompt guard);
+terminal-mode (pty passthrough, C-x stays an editor prefix). Minor modes ride a
+per-buffer enabled set sorted by precedence.
+
+Commands are objects (a raw function, a command instance, an execute method, and
+a string registry). M-x and keybinding converge on one call-command path.
+Argument descriptors (:universal, :number, :region) are the interactive spec;
+the prefix argument (C-u, M-digits, M--) feeds them. editor-variables are scoped
+default -> global -> buffer, the buffer-local values living in buffer meta as an
+fset map so they ride snapshots.
+
+* The eval and job substrate
+
+This is the parallel-computing core. It composes two things: pine.eval says how
+code runs, agents say where it runs.
+
+** pine.eval: how
+
+Every unit of running code is an EVALUATION. Each runs on its own thread, so it
+can block or loop without touching the editor, and produces one uniform object:
+form, package, status, values, captured output, and on error the condition, the
+restarts as data, and the backtrace. An error does not drop to a console
+debugger. The worker captures the restarts and blocks; a surface picks one by
+name (invoke-restart) or aborts. Selection is by name, which is what makes the
+debugger work across a process boundary later.
+
+** Agents: where
+
+Every place code can run is an agent addressed by name in the service registry:
+
+- :local   an in-image actor; shares live objects in this heap.
+- :process  an isolated SBCL image reached by remoting; own heap, own package.
+- :remote   an agent on another host.
+
+Same call (agent-eval NAME form), different blast radius. pine.eval is the
+engine inside every agent, so even the local agent evaluates off its mailbox
+thread and can never pin a dispatcher worker, and a process agent evaluates in
+isolation. The default is :local.
+
+** The job surface
+
+EVALUATION is the universal job object; the evaluation registry is actor state
+(not a global), so many agents can run at once. A jobs buffer lists every live
+job across every agent with its status, and selecting an errored one opens its
+debugger buffer with restarts, driving the by-name selection. That buffer is the
+surface where many agents report to one place.
+
+The design intent: there is one eval path. The editor never calls eval directly.
+eval-last-sexp, the repl, eval-buffer, and a widget click all become
+agent-eval :local, which makes swapping in a process agent transparent at the
+call site.
+
+* Adapters
+
+There is no service / agent distinction. An LSP server, a model, git, a linter,
+a file watcher, a data source, and the tree-sitter parser are all actors in the
+service registry, addressed identically. External-ness is an implementation
+detail: an adapter that wraps a subprocess is a process agent whose messages
+happen to speak a protocol. This is where the desktop's data, a language server,
+and a model all sit on the same footing.
+
+* The vt output substrate
+
+pine.vt is a styled cell grid fed by a pty, not a terminal mode. A reader thread
+appends output chunks under a lock; the render tick drains a bounded budget into
+the emulator (a carry cap drops oldest under a flood), so a program flooding
+output cannot block the UI thread and the terminal is only ever mutated from one
+thread.
+
+Shell, compile, grep, eshell, and agent or model output all paint onto this one
+grid. eshell-on-vt is the tell: the shell is one buffer actor, the subprocess is
+another, and a pipe is a tell between them.
+
+* The desktop
+
+The desktop is the substrate leaving the editor. The gtk4-layer-shell bars are a
+second surface on the same core, driven by reactive cells (pine.cell: a value
+that dedups on write and tracks the cells a render reads, so a widget re-renders
+when its inputs change) fed by data sources (pine.source: a source actor plus a
+reader thread over an event stream such as niri workspaces). Widgets are a
+pine.layout tree; clicks are in-process closures hit-tested by column and run off
+the UI thread through pine.eval. No broker, no update-string protocol.
+
+The desktop is not a second app. It is more surfaces and more adapters on the
+one substrate. That is what "editor and desktop in one substrate" means.
+
+* Persistence
+
+The daemon is durable because state is immutable snapshots plus an event log,
+not a mutable heap dumped to disk. A buffer's history is already a chain of fset
+states with ticks; the server records edits as an append-only log and periodic
+snapshots, keyed by buffer and client. A restart replays the log onto the last
+snapshot. This is what makes the daemon a computing environment you return to
+rather than a scratch process.
+
+* The process boundary: wire, fset, restarts
+
+Remoting copies. A message across a remote-ref is serialized, so what crosses is
+data (s-expressions, conditions rendered to data), not live heap objects. The
+rules that follow:
+
+- Share objects only within an image. Across the wire, pass data and refs. This
+  is why :local is the default and process agents are for isolation.
+- fset is the output model on both sides, but at the boundary an fset value is
+  rendered to plain lists and rebuilt on the far side, because sento will not
+  serialize fset's internals. In-image, pass the object; at the edge, serialize
+  a stable value.
+
+Restarts cross by name, never by object. A restart is a dynamically established
+control point; it lives only in the extent of the thread that set it up and
+cannot be moved. So the restart stays in the child, on its worker thread,
+blocked and holding the live restart objects. The child sends the restart list
+as data to the master surface; the user picks a name; the master tells the child
+to invoke that name; the child, still inside the extent where the restarts are
+live, looks the restart up by name and invokes it locally. You move the decision,
+not the handler. pine.eval already blocks the worker and selects by name, so the
+in-image debugger and the cross-process debugger are the same code with one
+remoting hop inserted.
+
+You still own liveness. If a process agent dies, the remote-ref calls EOF or time
+out; the server detects it, tears down that agent's bindings, and restarts it if
+policy says so. sento removes the socket and framing work, not the distributed
+facts (death, timeout, partial failure).
+
+* Supervision
+
+The server supervises agents. A dead process agent is detected by EOF or a
+missed heartbeat, its bindings are torn down, and it is restarted per policy. Let
+it crash. This is the property Genera lacked and the reason the multi-process
+shape earns its serialization cost: an isolated computation can fail hard and the
+editor keeps running.
+
+* Status
+
+Built and running (make dev is a typable GTK editor; make check loads clean):
+
+- Server / client split; per-session state on the client actor; the runtime on
+  the server. Typed actor messages throughout.
+- Buffers: immutable fset actors, edits as messages, snapshots to subscribers,
+  undo, registry. The crown jewel.
+- Surface protocol with <gtk-surface> and a headless test surface; the cell grid
+  seam; UI-thread render pump.
+- Modes: the CLOS composition backbone (major and minor, keymap layer plus
+  execute method-combination layer), precedence, transparent modes
+  (overwrite-mode). Commands as objects, prefix argument, argument descriptors,
+  M-x, editor-variables, describe-key / bindings / mode / variables.
+- Tree-sitter: raw CFFI to libtree-sitter (cffi-libffi for by-value nodes, no C
+  shim); commonlisp and scheme grammars from Guix; queries in-tree; highlight via
+  the renderer actor; structural motion (forward/backward-sexp, beginning/end-of-
+  defun, mark-sexp); byte to character mapping correct under UTF-8. See
+  design/treesitter.org.
+- pine.vt terminal buffers: pty, reader thread, bounded drain, terminal-mode.
+- pine.eval: off-thread evaluation, uniform EVALUATION object, restart-capable
+  debugger surface. C-x C-e, eval-buffer, eval-expression, the repl, and bar
+  clicks all route through it.
+- Desktop: a gtk4-layer-shell bar on reactive cells and a niri source actor; a
+  second surface on the same substrate.
+
+Designed here, not yet built (the ordered task list is in ~/org/pine-scope.org):
+
+- Route the local agent through pine.eval (its :eval currently evaluates inline
+  on the actor thread and can hang) and make the evaluation registry an actor.
+- Route all editor eval through agent-eval :local, so there is one addressable
+  eval path.
+- The jobs surface.
+- pine-agent: a real process agent (spawn sbcl, an actor-system with remoting,
+  register back), using the same pine.eval engine.
+- Restarts and streamed output across the wire.
+- Client attach entrypoint and multi-client; remoting attach.
+- Persistence: snapshot plus event log.
+- Supervision policy for agents.
+- Layout panes: dired, grep, compile, eshell-on-vt. Split windows.
+
+* Reference
+
+- Task list and system inventory: ~/org/pine-scope.org, ~/org/pine.org.
+- Tree-sitter design: design/treesitter.org.
+- sento (actor library with remoting): vendor/cl-gserver/.
+- Grammar packaging: guix/tree-sitter-commonlisp.scm.

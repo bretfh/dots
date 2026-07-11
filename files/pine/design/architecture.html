@@ -1,0 +1,439 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>hecl — architecture overview</title>
+<style>
+body { font: 14px/1.5 system-ui, sans-serif; max-width: 1040px;
+       margin: 2rem auto; color: #1e1e2e; background: #f8f8f8; padding: 0 2rem; }
+h1, h2, h3 { color: #0a2540; }
+h1 { margin-top: 0; }
+h2 { border-bottom: 1px solid #ccc; padding-bottom: .25rem; margin-top: 2.5rem; }
+h3 { margin-top: 1.5rem; }
+code, pre { font-family: 'SF Mono', Menlo, monospace; }
+pre { background: #eee; padding: 1rem; border-radius: 6px; overflow-x: auto;
+      font-size: 13px; line-height: 1.4; }
+.ref { color: #6c7086; font-size: .9em; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+th, td { border: 1px solid #ccc; padding: .5rem; text-align: left; vertical-align: top; }
+th { background: #e6e8ea; }
+.actors { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin: 1rem 0; }
+.actor  { border: 2px solid #0a6cbe; border-radius: 8px; padding: .75rem 1rem;
+          background: white; }
+.actor h3 { margin: 0 0 .25rem 0; color: inherit; }
+.actor.user     { border-color: #888;   color: #444; }
+.actor.client   { border-color: #0a6cbe; color: #0a6cbe; }
+.actor.buffer   { border-color: #4a7c4a; color: #2e5d2e; }
+.actor.other    { border-color: #a33;   color: #7a2222; }
+.msg  { font-family: monospace; background: #f4f4f4; padding: .15rem .4rem;
+        border-radius: 3px; font-size: 12px; }
+.callout { background: #fff8dc; border-left: 4px solid #d4a017;
+           padding: .75rem 1rem; margin: 1rem 0; }
+.callout.good { background: #e8f5e9; border-color: #4a7c4a; }
+.callout.warn { background: #ffefef; border-color: #a33; }
+.tree { font-family: 'SF Mono', Menlo, monospace; white-space: pre;
+        background: #eee; padding: 1rem; border-radius: 6px; font-size: 13px; }
+.gate { font-weight: bold; color: #a33; }
+.ok   { font-weight: bold; color: #2e5d2e; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.file-badge { display: inline-block; background: #e6e8ea; border-radius: 3px;
+              padding: .1rem .4rem; font-family: monospace; font-size: 12px;
+              color: #0a2540; }
+ul.tight li { margin: .15rem 0; }
+</style>
+</head>
+<body>
+
+<h1>hecl — architecture overview</h1>
+
+<p>One-line read: a programmable editor built as a network of sento actors,
+with a CLOS class hierarchy of modes driving behavior, and a uniform
+<code>tell</code> / <code>ask</code> verb set for anything addressable.</p>
+
+
+<h2>Runtime topology</h2>
+
+<p>Four kinds of things, all addressable through the same actor system:</p>
+
+<div class="actors">
+  <div class="actor user">
+    <h3>User</h3>
+    <p>Keyboard, mouse, QML callbacks.</p>
+    <p>External input source, not an actor itself.</p>
+  </div>
+  <div class="actor client">
+    <h3>Client</h3>
+    <p>Actor with a dispatch loop. Owns frame, windows, focused window,
+       pending-keys, mode stack, kill-ring, completion state, renderer,
+       buffer-modes cache.</p>
+    <p>Window manager for the buffers it hosts.</p>
+    <p><span class="ref">src/client.lisp</span></p>
+  </div>
+  <div class="actor buffer">
+    <h3>Buffer</h3>
+    <p>Actor owning an immutable <code>buffer-state</code>, undo ring,
+       subscriber list, last highlights.</p>
+    <p>Doesn't know who renders it.</p>
+    <p><span class="ref">src/buffer.lisp</span></p>
+  </div>
+  <div class="actor other">
+    <h3>Other actors</h3>
+    <p>Tree-sitter parser, buffer registry, event bus, agent registry,
+       LSP / LLM adapters (future).</p>
+    <p>From inside hecl they're just named mailboxes.</p>
+  </div>
+</div>
+
+
+<h2>Server / client relationship (tmux model)</h2>
+
+<p>The server holds the runtime; clients are actors inside it.</p>
+
+<table>
+<thead><tr><th>On the <b>server</b></th><th>On each <b>client</b></th></tr></thead>
+<tbody>
+<tr>
+<td>
+  actor-system · event-bus · agent-registry · buffer-registry · buffer-table ·
+  commands · global-keymap · faces · modes · ts-runtime · clients list ·
+  remoting-port
+  <br><br><span class="ref">src/server.lisp</span>
+</td>
+<td>
+  server-of (back-reference) · actor · renderer · ts-actor · render-state ·
+  frame · windows · focused-window · current-buffer · buffer-modes cache ·
+  pending-keys · mode-stack · completion-state · kill-ring · last-command ·
+  terminals · terminal-map · repl-buffer · prompt state
+  <br><br><span class="ref">src/client.lisp</span>
+</td>
+</tr>
+</tbody>
+</table>
+
+<p>Multiple clients can attach to one server. Buffers are shared across
+clients; windows and scroll positions are per-client. Kill the last client,
+server keeps running.</p>
+
+
+<h2>Files and load order</h2>
+
+<p>From <span class="file-badge">hecl.asd</span>:</p>
+
+<div class="tree">package → server → actor → event → hooks → face → buffer → window
+      → client → layout → mode → #+lqml bridge → ts → render
+      → file → shell → term → keymap → kill-ring → complete
+      → prompt → editor → user → main</div>
+
+<p>Early files are infrastructure (actors, state classes, faces). Middle files
+define the buffer/layout/mode substrate. Late files are commands, rendering,
+the LQML bridge, and user-facing entry points.</p>
+
+
+<h2>Buffer model</h2>
+
+<p>Every buffer is a text buffer at the data layer.</p>
+
+<ul class="tight">
+<li><code>buffer-state</code>: immutable — <code>lines</code> (fset:seq), <code>marks</code> (fset:map), <code>meta</code> (fset:map), <code>tick</code> (edit counter). <span class="ref">src/buffer.lisp:4–8</span></li>
+<li><code>snapshot</code>: frozen view for rendering — name, tick, lines, line-count, point-line, point-col, highlights, meta. <span class="ref">src/buffer.lisp:10–18</span></li>
+<li>Per-buffer actor stores <code>(state undo-ring subscribers hl-cache)</code>.</li>
+<li>Edits: message comes in → dispatch to mode → mode produces a new state → setf <code>sento.actor:*state*</code> → notify subscribers.</li>
+<li>Subscribers are client renderer actor refs; eq-identity for add/remove.</li>
+<li><code>buffer-local state/snap :key &optional default</code> reads <code>meta</code>. <span class="ref">src/buffer.lisp:38–47</span></li>
+</ul>
+
+
+<h2>Mode system</h2>
+
+<p>Modes are CLOS classes. <code>dispatch-message</code> is a generic function
+dispatched on mode; <code>call-next-method</code> walks parents.</p>
+
+<h3>Class hierarchy</h3>
+<div class="tree">base-mode                       (queries, subscribe, undo, set-local, highlights)
+├── text-mode                  (edit verbs: insert / newline / backspace / ...)
+│   ├── lisp-mode              (ts-language :commonlisp)
+│   └── repl-mode              (overrides :newline → repl-submit)
+└── terminal-mode              (writes → PTY; reads synthesized from gterm)</div>
+
+<p><span class="ref">src/mode.lisp:6–15 (base-mode); 175–245 (text-mode); 249–257 (lisp/repl); 275–312 (terminal)</span></p>
+
+<h3>Dispatch-message protocol</h3>
+
+<p>Buffer actor's receive reduces to:</p>
+
+<pre>(lambda (msg)
+  (let* ((state (first sento.actor:*state*))
+         (mode (or (find-mode (buffer-local state :mode :base-mode))
+                   (find-mode :base-mode))))
+    (dispatch-message mode sento.actor:*self*
+                      (first msg) (rest msg))))</pre>
+
+<p><span class="ref">src/buffer.lisp:226–236</span></p>
+
+<p>Methods handle their own state updates and replies by touching
+<code>sento.actor:*state*</code> directly and calling
+<code>sento.actor:reply</code>. Unknown tags fall through
+<code>call-next-method</code>.</p>
+
+<h3>Verb coverage per mode</h3>
+
+<table>
+<thead><tr><th>verb</th><th>base</th><th>text</th><th>terminal</th></tr></thead>
+<tbody>
+<tr><td>:get-state / :get-snapshot / :get-text</td><td class="ok">yes</td><td>inherit</td><td class="ok">override (reads gterm)</td></tr>
+<tr><td>:subscribe / :unsubscribe</td><td class="ok">yes</td><td>inherit</td><td>inherit</td></tr>
+<tr><td>:highlights</td><td class="ok">yes</td><td>inherit</td><td>inherit</td></tr>
+<tr><td>:set-local / :set-meta / :get-local</td><td class="ok">yes</td><td>inherit</td><td>inherit</td></tr>
+<tr><td>:undo</td><td class="ok">yes</td><td>inherit</td><td>no-op</td></tr>
+<tr><td>:replace-content</td><td class="ok">yes</td><td>inherit</td><td>no-op</td></tr>
+<tr><td>:insert / :newline / :backspace</td><td>—</td><td class="ok">edit state</td><td class="ok">write to PTY</td></tr>
+<tr><td>:move-point / :delete-region / :append-with-prompt</td><td>—</td><td class="ok">edit state</td><td>no-op</td></tr>
+</tbody>
+</table>
+
+<p>repl-mode inherits everything from text-mode and overrides only
+<code>:newline</code> to call <code>hecl.shell:repl-submit</code>. <span class="ref">src/mode.lisp:253–257</span></p>
+
+<h3>Per-mode fallback</h3>
+
+<p>When no keymap entry matches a key, the mode's <code>fallback</code> slot
+runs:</p>
+<ul class="tight">
+<li><code>text-mode</code>: insert the char if it's printable and unmodified.</li>
+<li><code>terminal-mode</code>: encode Ctrl-letter → control char, or special keys via <code>key-bytes</code>, then <code>tell buf :insert :text</code> — the terminal-mode <code>dispatch-message</code> method forwards to the PTY.</li>
+<li><code>base-mode</code>: no fallback (bound keys only).</li>
+</ul>
+<p><span class="ref">src/mode.lisp:316–347</span></p>
+
+
+<h2>Layout system</h2>
+
+<p>Buffers that display structured content (dired, compile, grep,
+completing-read) render a virtual node tree into their text. The
+<code>hecl.layout</code> package owns this.</p>
+
+<div class="grid-2">
+  <div>
+    <p><b>Containers:</b> <code>vstack</code>, <code>hstack</code>, <code>box</code>, <code>grid</code>, <code>list-node</code>.</p>
+    <p><b>Content:</b> <code>text-node</code>, <code>separator</code>, <code>field</code>.</p>
+    <p><b>Interactive:</b> <code>selectable</code>, <code>action</code>.</p>
+  </div>
+  <div>
+    <p><b>Container:</b> <code>layout</code> holds root node, target buffer name, state (plist), width.</p>
+    <p>Registered per-buffer on the server (<code>(hecl.server:layouts srv)</code>).</p>
+    <p><code>render-layout</code> produces lines; marks anchor each node's start/end for interactive hit-testing.</p>
+  </div>
+</div>
+
+<p><span class="ref">src/layout.lisp</span></p>
+
+<p>This is the substrate modes like dired-mode will use: keep <code>:insert</code>
+etc. as no-ops, override <code>:activate</code> (RET) to find the
+<code>selectable</code> at point via <code>buffer-layout</code> and fire its
+callback.</p>
+
+
+<h2>Key dispatch</h2>
+
+<p>QML forwards keys to <code>hecl:on-key</code>. <code>dispatch-key</code>
+walks:</p>
+
+<ol>
+  <li><code>pending-keys</code> — active chord prefix (e.g. <code>C-x …</code>).</li>
+  <li>Current mode's keymap chain (mode → parent → ... → base-mode).</li>
+  <li><code>global-keymap</code> — truly global (chord prefixes, <code>M-x</code>, <code>C-x C-e</code>).</li>
+  <li>Mode's <code>fallback</code> (insert-char for text, PTY-forward for terminal).</li>
+</ol>
+
+<p><span class="ref">src/keymap.lisp:75–133</span></p>
+
+<h3>Bindings split</h3>
+
+<table>
+<thead><tr><th>Where</th><th>What lives there</th></tr></thead>
+<tbody>
+<tr><td><code>global-keymap</code></td>
+    <td>C-x chord prefixes (<code>C-x C-f</code>, <code>C-x C-s</code>, <code>C-x b</code>, <code>C-x n</code>, <code>C-x r</code>, <code>C-x C-e</code>), <code>M-x</code>. Shared across all modes.</td></tr>
+<tr><td><code>text-mode</code> keymap</td>
+    <td>Arrows, Emacs-style movement (<code>C-f/b/a/e/n/p/d</code>, <code>M-&lt;/&gt;</code>), editing (<code>backspace</code>, <code>newline</code>, <code>delete-char</code>), kill/yank (<code>C-w</code>, <code>M-w</code>, <code>C-y</code>, <code>M-y</code>), <code>C-SPC</code> mark, scroll, undo.</td></tr>
+<tr><td><code>terminal-mode</code> keymap</td>
+    <td>Empty. Inherits C-x and M-x from global; everything else falls to the fallback and goes to the PTY.</td></tr>
+</tbody>
+</table>
+
+<p><span class="ref">src/keymap.lisp: install-default-bindings / install-text-mode-bindings</span></p>
+
+
+<h2>Rendering pipeline</h2>
+
+<p>Two threads, loosely coupled via an <code>fset:map</code> render-state.</p>
+
+<div class="grid-2">
+  <div>
+    <h3>Actor path (dispatcher thread)</h3>
+    <p>Renderer receives <code>:snapshot</code>, <code>:resize</code>,
+       <code>:switch-buffer</code>, <code>:force-render</code>. Updates windows
+       and marks <code>:dirty</code> in render-state.</p>
+    <p>On <code>:snapshot</code>, if the buffer's mode declares a
+       <code>ts-language</code> and the snapshot's tick is newer than the last
+       parsed tick, send <code>:parse</code> to ts-actor.</p>
+    <p><span class="ref">src/render.lisp:72–124</span></p>
+  </div>
+  <div>
+    <h3>Paint path (Qt thread)</h3>
+    <p>60 Hz persistent tick via <code>qsingle-shot 16</code>. If
+       <code>:dirty</code>, render focused window to the frame-cells buffer,
+       push to QML Canvas. Re-arms itself inside <code>unwind-protect</code>
+       so errors in the body never wedge the loop.</p>
+    <p><span class="ref">src/render.lisp:293–333</span></p>
+  </div>
+</div>
+
+<div class="callout good">
+<p><b>Invariant:</b> paints run independently of parsing. If tree-sitter is
+busy, slow, or unloaded, typing still shows up.</p>
+</div>
+
+
+<h2>Tree-sitter integration</h2>
+
+<p><code>hecl.ts:ts-runtime</code> holds a language map. Each entry carries
+its own parser, query, and capture-cache.</p>
+
+<pre>ts-runtime
+  libs-loaded : boolean
+  languages   : fset:map eq-keyword  → ts-entry
+                    ts-entry
+                      language
+                      parser
+                      query
+                      capture-cache</pre>
+
+<p><span class="ref">src/ts.lisp:51–70</span></p>
+
+<p>Adding a new language = one case in <code>load-language-entry</code>
+plus a loader function that dlopens the parser lib and reads the query.
+<span class="ref">src/ts.lisp:264–311</span></p>
+
+<p>A mode declares its language via the <code>ts-language</code> slot:</p>
+
+<table>
+<thead><tr><th>mode</th><th>ts-language</th><th>effect</th></tr></thead>
+<tbody>
+<tr><td>:base-mode / :text-mode</td><td>nil</td><td>no parse requested</td></tr>
+<tr><td>:lisp-mode</td><td>:commonlisp</td><td>parsed on each tick advance</td></tr>
+<tr><td>:repl-mode / :terminal-mode</td><td>nil</td><td>no parse requested</td></tr>
+</tbody>
+</table>
+
+<p>The renderer's <code>:snapshot</code> handler is what reads the mode and
+decides. If you want more detail on that specific path, see
+<code>design/render-snapshot-flow.html</code>.</p>
+
+
+<h2>Terminal integration</h2>
+
+<p>Terminals aren't a side channel. They're a mode.</p>
+
+<ul class="tight">
+  <li>Open a terminal → buffer actor + gterm (libghostty-vt) + forkpty pair + reader thread.</li>
+  <li>Buffer gets mode <code>:terminal-mode</code>. State is vestigial; real "text" lives in gterm's cell grid.</li>
+  <li>Writes: <code>(tell terminal-buf :insert :text "ls\n")</code> → terminal-mode's <code>dispatch-message</code> → <code>term-write</code> → <code>write(master_fd, ...)</code>.</li>
+  <li>Reads: <code>(ask terminal-buf :text)</code> → terminal-mode's <code>:get-text</code> override → <code>gterm-text</code> decodes the grid into a multi-line string.</li>
+  <li><code>:get-snapshot</code> / <code>:get-state</code>: synthesize a state from gterm-text plus the real cursor position via <code>gterm-cursor-row-of</code> / <code>gterm-cursor-col-of</code>.</li>
+  <li>Subscribers and <code>:highlights</code> on terminal-mode fall through to base-mode — harmless.</li>
+</ul>
+
+<p><span class="ref">src/term.lisp · src/mode.lisp:275–312</span></p>
+
+<div class="callout">
+<p>This is why <code>tell</code> is the single verb: same message, different
+semantics per mode, via CLOS. No <code>terminal-send-key</code> in the public
+API anymore — that path collapsed into the mode method.</p>
+</div>
+
+
+<h2>Interactive API — buffer / ask / tell</h2>
+
+<p>Three primitives in <code>hecl.buffer</code>, re-exported into scratch's
+default package <code>hecl-user</code>:</p>
+
+<pre>(buffer X)                       ; coerce: string/actor/:current/:focused/nil
+(ask TARGET QUERY &rest ARGS)    ; :server / :client / buffer queries
+(tell TARGET TAG &rest PLIST)    ; any tag the target's dispatch handles</pre>
+
+<p>Verb tables: <span class="file-badge">src/buffer.lisp:+server-verbs+ / +client-verbs+ / +buffer-verbs+</span></p>
+
+<p>Every target supports <code>(ask TARGET :describe)</code> returning its
+verb list.</p>
+
+<p>Full reference: <code>design/api.org</code>.</p>
+
+
+<h2>Bootstrap sequence</h2>
+
+<p><code>hecl:main</code> wires everything up:</p>
+
+<ol class="tight">
+<li><code>start-server</code> → actor-system + commands + global-keymap + faces + modes + buffer-table.</li>
+<li><code>ts-runtime</code> created (libs not loaded yet).</li>
+<li>Event bus + agent registry + local agent actors spawned.</li>
+<li><code>start-client server</code> → client instance + pushed onto server's clients list.</li>
+<li><code>setf hecl.client:*client*</code> = that client, making it the ambient context.</li>
+<li><code>install-default-faces</code>.</li>
+<li><code>start-editor</code> → buffer-registry actor, <code>ensure-ts</code> loads libtree-sitter, renderer actor + ts-actor spawned, default commands + bindings + modes installed, scratch buffer + window created, subscribed to buffer, scratch's <code>:package</code> set to <code>:hecl-user</code>.</li>
+<li><code>run-init-hooks</code>.</li>
+<li><code>(#+lqml init-ui client)</code> schedules <code>lispReady = true</code> 100 ms later; QML then reports real size and the render loop kicks off on the first <code>:resize</code>.</li>
+</ol>
+
+<p><span class="ref">src/main.lisp · src/editor.lisp:3–26</span></p>
+
+
+<h2>Status</h2>
+
+<div class="grid-2">
+  <div>
+    <h3>Shipped (Order 0)</h3>
+    <ul class="tight">
+      <li>Client / server split; globals → slots.</li>
+      <li>Ambient <code>*client*</code> only; no other dynamic specials for per-session state.</li>
+      <li>Actor messages: <code>(:tag :k v …)</code> plists everywhere.</li>
+      <li>Buffer-local vars via typed accessor on <code>meta</code>.</li>
+      <li>Render-loop unwedge fix (persistent tick + unwind-protect).</li>
+      <li>Parse-loop CPU fix (per-buffer last-parsed-tick gate).</li>
+      <li>Subscribe / unsubscribe by identity.</li>
+      <li>Deferred render-loop start on first resize.</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Shipped (Order 1)</h3>
+    <ul class="tight">
+      <li>Mode system: CLOS classes, <code>defmode</code>, <code>dispatch-message</code> generic.</li>
+      <li>base-mode, text-mode, lisp-mode, repl-mode, terminal-mode.</li>
+      <li>Terminal integrated via the mode; no side-channel API.</li>
+      <li>Tree-sitter refactored to hold a language map.</li>
+      <li>find-file picks mode by file extension.</li>
+    </ul>
+    <h3>Next up</h3>
+    <ul class="tight">
+      <li>Split windows + <code>C-x o</code>.</li>
+      <li>isearch + transient highlights.</li>
+      <li><code>hecl.term</code> → <code>hecl.vt</code> + <code>hecl.pty</code> substrate split (unlocks compile/grep/shell-on-vt).</li>
+      <li>compile-mode, dired-mode, grep-mode on top of the layout substrate.</li>
+    </ul>
+  </div>
+</div>
+
+
+<h2>Design docs</h2>
+
+<ul class="tight">
+<li><code>design/architecture.org</code> — master writeup, priority table, historical rationale.</li>
+<li><code>design/api.org</code> — <code>buffer</code> / <code>ask</code> / <code>tell</code> reference.</li>
+<li><code>design/client-actor.org</code> — the client-as-actor plan.</li>
+<li><code>design/render-snapshot-flow.html</code> — zoom-in on the <code>:snapshot</code> handler.</li>
+<li><code>design/architecture.html</code> — this file.</li>
+</ul>
+
+</body>
+</html>

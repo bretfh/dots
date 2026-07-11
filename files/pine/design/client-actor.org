@@ -1,0 +1,304 @@
+#+TITLE: hecl — Client Actor Skeleton
+#+AUTHOR: Bret Horne
+#+OPTIONS: toc:2 num:t
+
+* Goal
+
+Extract the client actor. Collapse per-session globals into its state.
+Establish the actor-message discipline (keyword-plist tails) by setting the
+precedent here; migrate other actors after.
+
+* State
+
+CLOS, not structs. ~defclass~ redefines cleanly at runtime via
+~update-instance-for-redefined-class~; ~defstruct~ invalidates existing
+instances. This is a live-programmable system and the field list will move
+during development. Matches the existing codebase (~buffer-state~, ~snapshot~,
+~window~, ~frame~, ~face~ are all ~defclass~).
+
+#+begin_src lisp
+(defclass completion ()
+  ((active-p   :initarg :active-p   :accessor active-p   :initform nil)
+   (candidates :initarg :candidates :accessor candidates :initform nil)
+   (filtered   :initarg :filtered   :accessor filtered   :initform nil)
+   (index      :initarg :index      :accessor index      :initform -1)
+   (input      :initarg :input      :accessor input      :initform "")
+   (callback   :initarg :callback   :accessor callback   :initform nil)
+   (prompt     :initarg :prompt     :accessor prompt     :initform "")))
+
+(defclass client ()
+  (;; Actor refs
+   (actor          :initarg :actor          :accessor actor          :initform nil)
+   (renderer       :initarg :renderer       :accessor renderer       :initform nil)
+   (ts-actor       :initarg :ts-actor       :accessor ts-actor       :initform nil)
+   ;; Display
+   (frame          :initarg :frame          :accessor frame          :initform nil)
+   (windows        :initarg :windows        :accessor windows        :initform nil)
+   (focused-window :initarg :focused-window :accessor focused-window :initform nil)
+   ;; Input / dispatch
+   (pending-keys   :initarg :pending-keys   :accessor pending-keys   :initform nil)
+   (mode-stack     :initarg :mode-stack     :accessor mode-stack     :initform nil)
+   ;; Completion
+   (completion     :initarg :completion     :accessor completion     :initform nil)
+   ;; Buffer focus
+   (current-buffer :initarg :current-buffer :accessor current-buffer :initform nil)
+   ;; Editing scratch
+   (kill-ring      :initarg :kill-ring      :accessor kill-ring      :initform nil)
+   (kill-ring-max  :initarg :kill-ring-max  :accessor kill-ring-max  :initform 60)
+   (last-command   :initarg :last-command   :accessor last-command   :initform nil)))
+#+end_src
+
+Package: put ~client~ and ~completion~ in a new ~hecl.client~ package so
+accessor names (~frame~, ~windows~, ~focused-window~, ~kill-ring~, etc.) don't
+collide with ~hecl.buffer~ exports. Qualify on call sites.
+
+* Server
+
+Globals don't become fewer; they become *none*. What's currently global is
+really *server state*. The tmux-model server is a real object. Add a ~server~
+class that owns everything the runtime needs, and every client holds a
+reference to it.
+
+#+begin_src lisp
+(defclass server ()
+  ((actor-system    :initarg :actor-system    :accessor actor-system    :initform nil)
+   (event-bus       :initarg :event-bus       :accessor event-bus       :initform nil)
+   (agent-registry  :initarg :agent-registry  :accessor agent-registry  :initform nil)
+   (buffer-registry :initarg :buffer-registry :accessor buffer-registry :initform nil)
+   (buffer-trees    :initarg :buffer-trees    :accessor buffer-trees    :initform nil)
+   (commands        :initarg :commands        :accessor commands        :initform nil)
+   (global-keymap   :initarg :global-keymap   :accessor global-keymap   :initform nil)
+   (faces           :initarg :faces           :accessor faces           :initform nil)
+   (ts-runtime      :initarg :ts-runtime      :accessor ts-runtime      :initform nil)
+   (modes           :initarg :modes           :accessor modes           :initform nil)
+   (clients         :initarg :clients         :accessor clients         :initform nil)
+   (remoting-port   :initarg :remoting-port   :accessor remoting-port   :initform nil)))
+#+end_src
+
+~ts-runtime~ holds the tree-sitter library handles (~loaded-p~, ~language~,
+~query~, ~parser~) inside its own object. The library is loaded once per OS
+process, but the accessor is still a slot, not a ~defvar~. Two servers in one
+image would share the loaded lib cleanly enough.
+
+~clients~ is the list of connected clients; ~remoting-port~ lets other
+processes attach.
+
+The ~client~ gets one more slot:
+
+#+begin_src lisp
+(server :initarg :server :accessor server :initform nil)
+#+end_src
+
+So code that today reads ~hecl.actor:*actor-system*~ reads
+~(actor-system (server client))~. Code that reads ~*commands*~ reads
+~(commands (server client))~. Etc. One indirection, zero globals.
+
+For dev-time convenience a single ~*server*~ parameter can exist so REPL
+interaction isn't tedious — but it's a hint, not load-bearing. Every actor
+closes over the server reference it belongs to.
+
+* Message protocol
+
+All tags are keywords. All arguments after the tag are a keyword plist. One
+rule, everywhere.
+
+#+begin_src lisp
+;; Sent TO the client
+
+(:key/press         :code int :mods int :text string)
+(:resize            :cols int :rows int)
+(:buffer-switch     :buffer actor-ref :name string)
+(:buffer-snapshot   :buffer actor-ref :snapshot snapshot)
+(:buffer-highlights :buffer actor-ref :highlights list)
+(:window-add        :window window)
+(:window-remove     :window window)
+(:window-focus      :window window)
+(:command/run       :name string)
+(:command/prompt    :text string :callback fn)
+(:status/text       :text string)
+(:get-state         :key keyword :reply-to ref)   ; ask-s pattern for tests
+
+;; Sent BY the client
+
+;; — to buffer actors: the existing (:insert ...), (:move-point ...) etc.
+;;   Those will be migrated to plist style in a second pass. Client doesn't
+;;   block on that.
+;; — to renderer: (:render :frame f), (:force-render)
+;; — to ts-actor:  (:parse :text s :reply-to buf)
+#+end_src
+
+* Receive loop
+
+One ~case~ on the tag, ~destructuring-bind~ on the tail. No ~cadr~/~caddr~.
+
+#+begin_src lisp
+(defun make-client-receive (client)
+  (lambda (msg)
+    (case (first msg)
+      (:key/press
+       (destructuring-bind (&key code mods text) (rest msg)
+         (dispatch-key client code mods text)))
+      (:resize
+       (destructuring-bind (&key cols rows) (rest msg)
+         (handle-resize client cols rows)))
+      (:buffer-switch
+       (destructuring-bind (&key buffer name) (rest msg)
+         (handle-buffer-switch client buffer name)))
+      (:buffer-snapshot
+       (destructuring-bind (&key buffer snapshot) (rest msg)
+         (handle-buffer-snapshot client buffer snapshot)))
+      (:buffer-highlights
+       (destructuring-bind (&key buffer highlights) (rest msg)
+         (handle-buffer-highlights client buffer highlights)))
+      (:window-add
+       (destructuring-bind (&key window) (rest msg)
+         (push window (client-windows client))))
+      (:window-focus
+       (destructuring-bind (&key window) (rest msg)
+         (focus-window-in-client client window)))
+      (:command/run
+       (destructuring-bind (&key name) (rest msg)
+         (run-command-in-client client name)))
+      (:command/prompt
+       (destructuring-bind (&key text callback) (rest msg)
+         (prompt-in-client client text callback)))
+      (:status/text
+       (destructuring-bind (&key text) (rest msg)
+         #+lqml (hecl.qml:update-status-text text)))
+      (:get-state
+       (destructuring-bind (&key key reply-to) (rest msg)
+         (sento.actor:tell reply-to (client-state-value client key))))
+      (t
+       (warn "client: unknown msg tag ~s" (first msg))))))
+#+end_src
+
+~dispatch-key~, ~handle-resize~, etc. are plain functions taking ~client~ as
+their first argument. They read and write the struct directly. Everything that
+currently reaches for a global reaches into this struct instead.
+
+Example of the mechanical shift for ~dispatch-key~:
+
+#+begin_src lisp
+;; before (keymap.lisp today):
+(let ((table (if *pending-keys* *pending-keys* *global-keymap*)))
+  (let ((entry (gethash id table)))
+    (cond
+      ((hash-table-p entry) (setf *pending-keys* entry))
+      ((stringp entry) (setf *pending-keys* nil) (run-command entry))
+      ...)))
+
+;; after:
+(let ((table (or (pending-keys client) *global-keymap*)))
+  (let ((entry (gethash id table)))
+    (cond
+      ((hash-table-p entry) (setf (pending-keys client) entry))
+      ((stringp entry) (setf (pending-keys client) nil)
+                       (run-command-in-client client entry))
+      ...)))
+#+end_src
+
+* Startup sequence
+
+#+begin_src lisp
+(defun start-server (&key (workers 4) (remoting-port 0))
+  (let* ((sys (hecl.actor:make-actor-system :workers workers
+                                            :remoting-port remoting-port))
+         (srv (make-instance 'server
+                :actor-system sys
+                :commands (make-hash-table :test 'equal)
+                :global-keymap (make-hash-table :test 'equal)
+                :faces (make-hash-table :test 'eq)
+                :modes (make-hash-table :test 'eq))))
+    (setf (event-bus srv)       (hecl.event:make-event-bus sys)
+          (agent-registry srv)  (hecl.actor:start-agent-registry sys)
+          (buffer-registry srv) (hecl.buffer:start-buffer-registry sys)
+          (ts-runtime srv)      (hecl.ts:make-ts-runtime)
+          (remoting-port srv)   (when remoting-port
+                                  (hecl.actor:remoting-port-of sys)))
+    (hecl.editor:install-default-commands srv)
+    (hecl.editor:install-default-bindings srv)
+    srv))
+
+(defun start-client (server)
+  (let* ((sys (actor-system server))
+         (client (make-instance 'client
+                   :server server
+                   :frame (make-instance 'hecl.buffer::frame)
+                   :completion (make-instance 'completion)))
+         (renderer (hecl.render:start-renderer server client))
+         (act (sento.actor-context:actor-of sys
+                :name (format nil "client-~a" (gensym "C"))
+                :state client
+                :receive (make-client-receive client))))
+    (setf (actor client)    act
+          (renderer client) renderer
+          (ts-actor client) (hecl.render:ts-actor-of server))
+    (push client (clients server))
+    client))
+
+(defun main (&key (workers 4) (remoting-port 0))
+  (let* ((srv (start-server :workers workers :remoting-port remoting-port))
+         (client (start-client srv))
+         (buf (hecl.buffer:make-buffer srv "scratch")))
+    (sento.actor:tell (actor client)
+                      (list :window-add
+                            :window (hecl.buffer:make-window
+                                     buf "scratch"
+                                     :row 0 :col 0 :width 80 :height 29
+                                     :focused t)))
+    (hecl.hooks:run-init-hooks srv)
+    #+lqml (hecl.qml:init-ui client)
+    (values srv client)))
+#+end_src
+
+A second client is ~(start-client srv)~. They share the server; each has its
+own renderer, frame, windows, mode stack, kill-ring, completion state.
+
+Attaching a second process as a client to an already-running server goes
+through sento remoting: the remote process creates a client actor inside this
+server's actor-system via the port in ~(remoting-port server)~ and holds a
+reference back to its own display process.
+
+* Migration plan
+
+Four commits, in order. Each leaves the tree green.
+
+1. *Introduce structs and ~make-client~.* No behavior change. The struct
+   exists alongside the specials. Tests instantiate it.
+
+2. *Route key events through the client actor.* QML's ~on-key~ goes to
+   ~(tell client :key/press ...)~ instead of calling ~dispatch-key~
+   directly. ~dispatch-key~ still reads globals internally. This validates
+   the actor path end-to-end.
+
+3. *Move state off globals, one field at a time.* Start with the safest:
+   ~focused-window~, ~current-buffer~, ~frame~, ~windows~. Each move is a
+   commit: change the accessor, update all readers/writers, run. Then
+   ~pending-keys~, then ~kill-ring~ + ~last-command~, then the six
+   completion specials → ~client-completion~ struct. ~*mode*~ last (it will
+   be replaced by the mode stack in Order 1 work).
+
+4. *Delete the specials.* Remove ~defvar~ lines. Compiler catches any
+   stragglers.
+
+The command registry and keybinding setup (~setup-default-bindings~,
+~*commands*~, ~*global-keymap*~) stay global — they are shared runtime
+tables, not per-client state.
+
+* Message-typing discipline (precedent set here)
+
+Rule: every actor message is ~(tag &rest plist)~ where ~tag~ is a keyword and
+the plist keys are documented next to the handler. Destructuring uses
+~destructuring-bind (&key ...) (rest msg)~.
+
+No ~car~, ~cdr~, ~cadr~, ~caddr~, ~cadddr~ anywhere in new code. Use
+~first~, ~rest~, ~second~, ~third~, ~nth~. Existing files migrate away from
+the legacy forms as they're touched.
+
+Unknown tags warn and return, not error — an actor should survive a bad send
+from a buggy peer.
+
+After the client is done, the buffer actor is next (its ~:insert~,
+~:move-point~, ~:delete-region~ etc. become ~(:insert :text s)~,
+~(:move-point :line l :col c)~ style). Then renderer, then ts-actor. No
+flag day; each actor migrates independently.
