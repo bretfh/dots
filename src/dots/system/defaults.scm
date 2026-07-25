@@ -9,6 +9,7 @@
   #:use-module (nongnu packages linux)
   #:use-module (nongnu system linux-initrd)
   #:use-module (dots packages stumpwm)
+  #:use-module (dots packages pine-session)
   #:export (default-hostname
             default-locale
             default-timezone
@@ -53,7 +54,8 @@
   (list (user-group (name "i2c") (system? #t))))
 
 (define default-extra-packages
-  (append (map specification->package
+  (append (list pine-session)          ; the pine session entry, beside niri
+          (map specification->package
                '("openssh"
                  "sway" "niri" "swaylock" "swayidle" "wlgreet"
                  "xorg-server-xwayland" "xwayland-satellite" "alacritty"
