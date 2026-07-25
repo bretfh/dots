@@ -29,46 +29,27 @@
 (define %xkb-layout "us")
 (define %xkb-options "ctrl:swapcaps")
 
-;;; river's init. It keeps the window manager up, because river holds the
-;;; windows whatever happens to it and a fresh manager re-binds and
-;;; re-arranges from the daemon's tree.
-;;;
-;;; It stops when the compositor does. wm-exit ends the session through the
-;;; protocol, so river exits and unlinks its socket; without that test the
-;;; loop would keep launching a manager at a compositor that is gone, long
-;;; after the session handed back to the display manager. A manager that
-;;; dies within seconds is failing rather than crashing once, so a run of
-;;; those gives up instead of spinning.
+;;; river's init. The daemon is started at login by its own service, before
+;;; any compositor exists, so it has no display and starts nothing. This tells
+;;; it which display the session is on, and the daemon takes it from there.
 (define %init-script "\
 #!/bin/sh
+# river runs this once it is up. Its whole job is to tell the daemon which
+# display this session is on. The daemon then starts and supervises the
+# frontends the configuration asks for, the window manager included.
 export XDG_CURRENT_DESKTOP=pine
-state=\"${XDG_STATE_HOME:-$HOME/.local/state}\"
-log=\"$state/pine-wm.log\"
-socket=\"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY}\"
-failures=0
+log=\"${XDG_STATE_HOME:-$HOME/.local/state}/pine-session.log\"
 
-# Only the window manager is started here. The daemon owns the editor and the
-# desktop: it spawns each as its own process and respawns any that dies, and
-# skips one already attached. The window manager is different because it can
-# only bind once the compositor is up, which is what river's init means.
-
-while [ -S \"$socket\" ] && [ \"$failures\" -lt 10 ]; do
-  started=$(date +%s)
-  LD_LIBRARY_PATH=$GUIX_ENVIRONMENT/lib \\
-  CL_SOURCE_REGISTRY=$HOME/git/cl/pine//:$GUIX_ENVIRONMENT/share/common-lisp// \\
-  ASDF_OUTPUT_TRANSLATIONS=/:$HOME/.cache/common-lisp/pine/ \\
-  sbcl --no-userinit --non-interactive \\
-       --eval '(require :asdf)' \\
-       --eval '(asdf:load-system :pine/wayland)' \\
-       --eval '(pine.wl-wm:run-wm)' >>\"$log\" 2>&1
-  if [ $(( $(date +%s) - started )) -lt 5 ]; then
-    failures=$(( failures + 1 ))
-  else
-    failures=0
-  fi
-  sleep 1
-done
+cd $HOME/git/cl/pine || exit 1
+LD_LIBRARY_PATH=$GUIX_ENVIRONMENT/lib \\
+CL_SOURCE_REGISTRY=$HOME/git/cl/pine//:$GUIX_ENVIRONMENT/share/common-lisp// \\
+ASDF_OUTPUT_TRANSLATIONS=/:$HOME/.cache/common-lisp/pine/ \\
+exec sbcl --no-userinit --non-interactive \\
+     --eval '(require :asdf)' \\
+     --eval '(asdf:load-system :pine)' \\
+     --eval '(pine::cli (list \"session\"))' >>\"$log\" 2>&1
 ")
+
 
 (define-public pine-session
   (package
