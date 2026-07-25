@@ -24,6 +24,11 @@
 
 (define %repo "$HOME/git/cl/pine")
 
+;;; The keyboard, matching the niri session: caps lock is another control.
+;;; wlroots reads these, so river needs no configuration of its own for it.
+(define %xkb-layout "us")
+(define %xkb-options "ctrl:swapcaps")
+
 ;;; river's init. It keeps the window manager up, because river holds the
 ;;; windows whatever happens to it and a fresh manager re-binds and
 ;;; re-arranges from the daemon's tree.
@@ -37,9 +42,26 @@
 (define %init-script "\
 #!/bin/sh
 export XDG_CURRENT_DESKTOP=pine
-log=\"${XDG_STATE_HOME:-$HOME/.local/state}/pine-wm.log\"
+state=\"${XDG_STATE_HOME:-$HOME/.local/state}\"
+log=\"$state/pine-wm.log\"
 socket=\"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY}\"
 failures=0
+
+# The frontends. The daemon spawns these itself only when it runs as the
+# built binary; from source it stays headless, so the session starts them --
+# the same job niri's spawn-at-startup does for the bar today.
+pine_frontend() {
+  LD_LIBRARY_PATH=$GUIX_ENVIRONMENT/lib \\
+  CL_SOURCE_REGISTRY=$HOME/git/cl/pine//:$GUIX_ENVIRONMENT/share/common-lisp// \\
+  ASDF_OUTPUT_TRANSLATIONS=/:$HOME/.cache/common-lisp/pine/ \\
+  sbcl --no-userinit --non-interactive \\
+       --eval '(require :asdf)' \\
+       --eval '(asdf:load-system :pine/wayland)' \\
+       --eval \"$1\" >>\"$state/pine-$2.log\" 2>&1 &
+}
+
+pine_frontend '(pine.wayland:run-desktop)' desktop
+pine_frontend '(pine.wl-editor:run-editor)' editor
 
 while [ -S \"$socket\" ] && [ \"$failures\" -lt 10 ]; do
   started=$(date +%s)
@@ -87,9 +109,11 @@ done
             (call-with-output-file start
               (lambda (port)
                 (format port "#!/bin/sh~%~
+export XKB_DEFAULT_LAYOUT=~a~%~
+export XKB_DEFAULT_OPTIONS=~a~%~
 cd ~a || exit 1~%~
 exec guix shell -m manifest.scm -- river -c ~a~%"
-                        #$%repo init)))
+                        #$%xkb-layout #$%xkb-options #$%repo init)))
             (chmod start #o555)
 
             (call-with-output-file (string-append sessions "/pine.desktop")
