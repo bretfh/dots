@@ -47,21 +47,10 @@ log=\"$state/pine-wm.log\"
 socket=\"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY}\"
 failures=0
 
-# The frontends. The daemon spawns these itself only when it runs as the
-# built binary; from source it stays headless, so the session starts them --
-# the same job niri's spawn-at-startup does for the bar today.
-pine_frontend() {
-  LD_LIBRARY_PATH=$GUIX_ENVIRONMENT/lib \\
-  CL_SOURCE_REGISTRY=$HOME/git/cl/pine//:$GUIX_ENVIRONMENT/share/common-lisp// \\
-  ASDF_OUTPUT_TRANSLATIONS=/:$HOME/.cache/common-lisp/pine/ \\
-  sbcl --no-userinit --non-interactive \\
-       --eval '(require :asdf)' \\
-       --eval '(asdf:load-system :pine/wayland)' \\
-       --eval \"$1\" >>\"$state/pine-$2.log\" 2>&1 &
-}
-
-pine_frontend '(pine.wayland:run-desktop)' desktop
-pine_frontend '(pine.wl-editor:run-editor)' editor
+# Only the window manager is started here. The daemon owns the editor and the
+# desktop: it spawns each as its own process and respawns any that dies, and
+# skips one already attached. The window manager is different because it can
+# only bind once the compositor is up, which is what river's init means.
 
 while [ -S \"$socket\" ] && [ \"$failures\" -lt 10 ]; do
   started=$(date +%s)
