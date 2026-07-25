@@ -5,6 +5,12 @@
 ;;; start, so the session runs the working tree: iterate on pine and log back
 ;;; in, no reconfigure. Only this entry is declared here.
 ;;;
+;;; The sbcl invocation matches the repo's Makefile exactly, and must: without
+;;; --no-userinit and an explicit CL_SOURCE_REGISTRY, ~/.sbclrc pulls in ocicl
+;;; and ASDF resolves pine's dependencies out of whatever checkout it finds
+;;; first, which is how the session came up with an ocicl cl-sqlite that has
+;;; no library to load.
+;;;
 ;;; The daemon is the home-pine shepherd service, already running by the time
 ;;; a session starts; the window manager attaches to it over remoting and
 ;;; retries until it answers, so start order does not matter.
@@ -38,8 +44,10 @@ failures=0
 while [ -S \"$socket\" ] && [ \"$failures\" -lt 10 ]; do
   started=$(date +%s)
   LD_LIBRARY_PATH=$GUIX_ENVIRONMENT/lib \\
+  CL_SOURCE_REGISTRY=$HOME/git/cl/pine//:$GUIX_ENVIRONMENT/share/common-lisp// \\
   ASDF_OUTPUT_TRANSLATIONS=/:$HOME/.cache/common-lisp/pine/ \\
-  sbcl --non-interactive \\
+  sbcl --no-userinit --non-interactive \\
+       --eval '(require :asdf)' \\
        --eval '(asdf:load-system :pine/wayland)' \\
        --eval '(pine.wl-wm:run-wm)' >>\"$log\" 2>&1
   if [ $(( $(date +%s) - started )) -lt 5 ]; then
