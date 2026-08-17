@@ -19,6 +19,7 @@
   #:use-module (dots home services waybar)
   #:use-module (dots home services fuzzel)
   #:use-module (dots home services eww)
+  #:use-module (dots home services pine)
   #:use-module (dots home services mako)
   #:use-module (dots home services gtklock)
   #:use-module (dots home services gtk)
@@ -128,7 +129,7 @@
      (home-bash-service #:config-dir config-dir #:desktop default-desktop)
      (service home-dbus-service-type)
      (service home-emacs-config-service-type)
-     (service home-eww-broker-service-type)
+     (service home-pine-service-type)
      (service home-pipewire-service-type)
      (service home-ssh-agent-service-type)
      (service home-openssh-service-type

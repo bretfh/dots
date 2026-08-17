@@ -88,11 +88,15 @@ suitable for tools that spawn $EDITOR)."
     (other (symbol->string other))))
 
 (define (desktop-launch-bar d)
-  "Return the shell command that starts D's status bar."
   (match (desktop-bar d)
-    ;; echo first, bar last: same layer, later surface paints on top, so the
-    ;; sidebar overlaps the echo's left end and the echo tucks under it.
     ('eww "eww open-many echo bar")
+    ('pine (string-append
+            "cd $HOME/git/cl/pine && exec guix shell -m manifest.scm -- sh -c "
+            "'LD_LIBRARY_PATH=\"$GUIX_ENVIRONMENT/lib\" "
+            "ASDF_OUTPUT_TRANSLATIONS=\"/:$HOME/.cache/common-lisp/pine/\" "
+            "exec sbcl --non-interactive "
+            "--eval \"(asdf:load-system :pine/wayflan)\" "
+            "--eval \"(pine.wayland:run-desktop)\"'"))
     (other (symbol->string other))))
 
 (define (desktop-launch-compositor d)
@@ -108,6 +112,7 @@ the bare-tty1 fallback when no display manager handed off a session."
 some other way (emacs ships from its own home service)."
   (match tool
     ('emacs #f)
+    ('pine  #f)
     (other (symbol->string other))))
 
 (define (desktop-packages d)
@@ -121,7 +126,7 @@ session infrastructure installed at the system level, so they are not here."
 (define default-desktop
   (desktop
    (compositors '(niri sway))
-   (bars        '(eww waybar))
+   (bars        '(pine eww waybar))
    (pickers     '(fuzzel))
    (terminals   '(alacritty wezterm))
    (editors     '(emacs vim))
