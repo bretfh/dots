@@ -18,6 +18,8 @@
   #:use-module (dots packages claude-code)
   #:use-module (dots packages qwen-code)
   #:use-module (dots packages opentofu)
+  #:use-module (dots packages ministack)
+  #:use-module (dots packages playwright)
   #:use-module (dots packages litestream)
   #:use-module (dots packages brogue-ce)
   #:re-export (stumpwm-dev
@@ -28,5 +30,8 @@
                claude-code
                qwen-code
                opentofu
+               ministack
+               node-playwright
+               node-playwright-core
                litestream
                brogue-ce))
