@@ -13,6 +13,7 @@
   #:use-module (gnu services shepherd)
   #:use-module ((pine packages pine) #:select ((pine . pine-package)))
   #:use-module (dots core)
+  #:use-module (dots assets)
   #:export (home-pine-service-type
             <pine> pine))
 
@@ -62,6 +63,13 @@
 ;; pine is not a spec string; it reaches the profile through the service, the
 ;; way emacs does.
 (define-method (component-packages (c <pine>)) '())
+
+;; What this machine runs, in pine's own language: the systems, the devices, the
+;; surfaces and the chords. pine reads it from XDG_CONFIG_HOME itself, so this
+;; only has to put it there.
+(define-method (component-config-files (c <pine>) desktop)
+  `(("pine/init.lisp"
+     ,(local-file (string-append assets-dir "/pine/init.lisp")))))
 
 ;; The daemon owns the frontends and fills WAYLAND_DISPLAY/NIRI_SOCKET itself,
 ;; but the home shepherd outlives the session, so starting pine in a session
