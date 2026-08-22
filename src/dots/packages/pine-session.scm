@@ -21,7 +21,7 @@
   #:use-module (guix build-system trivial)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (pine packages river)
-  #:use-module (dots home component)
+  #:use-module (dots input)
   #:export (pine-session))
 
 ;;; The keyboard, from the one declaration the niri session also reads.
