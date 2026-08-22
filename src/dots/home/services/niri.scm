@@ -1,16 +1,15 @@
 (define-module (dots home services niri)
+  #:use-module (oop goops)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 format)
+  #:use-module (ice-9 match)
   #:use-module (guix gexp)
   #:use-module (dots theme base)
-  #:use-module (dots home desktop)
+  #:use-module (dots home component)
   #:use-module (dots config kdl)
-  #:export (niri-capability
-            niri-config
+  #:export (niri-config
             keybind
-            default-niri-bindings
-            default-niri-startups
-            default-niri-xkb-options))
+            <niri> niri))
 
 
 ;;; keybind: build's one KDL bind node, ie (Mod+Return (spawn-sh "alacritty")).
@@ -24,14 +23,24 @@
         (list name action))))
 
 
-;;; default binding set
-(define (desktop-launch-bindings desktop)
-  "Return the niri keybindings that launch DESKTOP's terminal, picker, and
-editor, so the keys agree with the rest of the session."
-  (list
-   (keybind #:mod "Mod" #:key "Return" #:run (desktop-launch-terminal desktop))
-   (keybind #:mod "Mod" #:key "D" #:run (desktop-launch-picker desktop))
-   (keybind #:mod "Mod" #:key "E" #:run (desktop-launch-editor desktop))))
+;;; The binds that open something. What they open is whatever fills the role,
+;;; so these keys can never disagree with the rest of the session.
+(define (launch-bindings desktop)
+  (filter-map
+   (lambda (spec)
+     (match spec
+       ((mod key component)
+        (and component
+             (keybind #:mod mod #:key key #:run (component-launch component))))))
+   (list (list "Mod" "Return" (desktop-terminal desktop))
+         (list "Mod" "D"      (desktop-picker desktop))
+         (list "Mod" "E"      (desktop-editor desktop))
+         (list "Mod" "W"      (desktop-wallpaper desktop)))))
+
+;;; Reloading the session means telling every program that can reload to do so.
+(define (reload-binding desktop)
+  (keybind #:mod "Mod+Shift" #:key "R"
+           #:run (desktop-reload-command desktop)))
 
 (define %niri-base-bindings
   (list
@@ -39,10 +48,6 @@ editor, so the keys agree with the rest of the session."
    (keybind #:mod "Mod" #:key "Q" #:act '(close-window))
    (keybind #:mod "Mod+Shift" #:key "E" #:act '(quit))
    (keybind #:mod "Mod" #:key "O" #:act '(toggle-overview))
-   (keybind #:mod "Mod" #:key "W" #:run "bash ~/.config/rice/wallpaper")
-   (keybind #:mod "Mod+Shift" #:key "R"
-            #:run "niri msg action load-config-file; eww reload; makoctl reload")
-
    ;; focus: Mod+H/L between columns, Mod+J/K within a column
    (keybind #:mod "Mod" #:key "H" #:act '(focus-column-left))
    (keybind #:mod "Mod" #:key "L" #:act '(focus-column-right))
@@ -96,33 +101,27 @@ editor, so the keys agree with the rest of the session."
         (keybind #:mod "Mod+Shift" #:key k #:act `(move-column-to-workspace ,n)))))
    (iota 10 1)))
 
-(define default-niri-bindings
-  (append (desktop-launch-bindings default-desktop)
+(define (niri-bindings desktop)
+  (append (launch-bindings desktop)
+          (list (reload-binding desktop))
           %niri-base-bindings
           (numbered-workspace-bindings)))
 
-;;; default startup commands and xkb options
-(define default-niri-startups
-  (list (desktop-launch-bar default-desktop)
-        "mako"
-        (string-append "swayidle -w timeout 600 "
-                       "'sh ~/.config/gtklock/lock -d' "
-                       "before-sleep 'sh ~/.config/gtklock/lock -d'")
-        (format #f "dbus-update-activation-environment --systemd \
+;;; What the session spawns at login. Every entry comes from a component that
+;;; said it autostarts, so this list never names a program: swap the bar and
+;;; the startup follows. The dbus line is not a component -- it hands the
+;;; session identity to dbus-activated services and must run first.
+(define (niri-startups desktop)
+  (cons (format #f "dbus-update-activation-environment --systemd \
 WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
-                (desktop-xdg-name default-desktop))
-        ;; rebind the emacs daemon (a home shepherd service) to this session's
-        ;; wayland display. this way, the persistent shepherd doesn't restart on login,
-        ;; and pgtk emacs needs the live display to make gui frames.
-        "herd restart emacs-daemon"
-        "bash ~/.config/rice/wallpaper"))
-
-(define default-niri-xkb-options "ctrl:swapcaps")
+                (desktop-xdg-name desktop))
+        (desktop-autostarts desktop)))
 
 ;;; config sections, as kdl nodes
-(define (input-node keyboard-layout xkb-options)
+(define (input-node kbd)
   `(input
-    (keyboard (xkb (layout ,keyboard-layout) (options ,(or xkb-options ""))))
+    (keyboard (xkb (layout ,(keyboard-layout kbd))
+                   (options ,(keyboard-options-string kbd))))
     (touchpad (tap))
     (warp-mouse-to-focus)))
 
@@ -151,65 +150,66 @@ WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=~a"
     (clip-to-geometry true)
     (draw-border-with-background false)))
 
-;;; Real compositor blur behind the eww layer-shell surfaces. The bar, the echo
-;;; strip, and every eww popup share the gtk-layer-shell namespace, so one rule
-;;; gives them all the same glass. x-ray blur is the default and costs nothing
-;;; here: the bar and echo are exclusive, so only the wallpaper is ever behind
-;;; them, and niri blurs that once and reuses it.
-(define (layer-rule-node theme)
-  ;; Bar + echo are square (radius 0) so their outer edges meet the screen and
-  ;; each other seamlessly; any rounding is done in CSS on the accent corner
-  ;; box. xray false blurs the real content below the surface (the wallpaper
-  ;; layer + windows), not niri's empty transparent backdrop.
-  `(layer-rule
-    (match (@ (namespace "gtk-layer-shell")))
-    (match (@ (namespace "notifications")))
-    (match (@ (namespace "launcher")))
-    (geometry-corner-radius 0)
-    (background-effect (blur true) (xray false))))
-
-;;; The eww popups (network / audio / media / control) live on the overlay
-;;; layer; keep their blur clipped to the same 20px radius as their CSS corners
-;;; so the rounded popups are not boxed off by a square blur.
-(define (layer-rule-popup-node theme)
-  `(layer-rule
-    (match (@ (namespace "gtk-layer-shell") (layer "overlay")))
-    (geometry-corner-radius 20)))
+;;; Real compositor blur behind the session's layer-shell surfaces. Which
+;;; namespaces those are is not niri's business -- every component declares
+;;; the surfaces it puts on screen and this turns each into one rule, so the
+;;; compositor config names no other program.
+;;;
+;;; A blurred surface is square (radius 0) so its outer edges meet the screen
+;;; and each other seamlessly; rounding is done in CSS. `xray false' blurs the
+;;; real content below the surface (the wallpaper layer and windows), not
+;;; niri's empty transparent backdrop. It costs nothing here: the bar and echo
+;;; are exclusive, so only the wallpaper is ever behind them, and niri blurs
+;;; that once and reuses it.
+;;;
+;;; A surface that IS rounded (an overlay popup) needs its blur clipped to the
+;;; same radius as its CSS corners, or a square blur boxes it off.
+(define (layer-rule-node layer)
+  (match layer
+    ((namespace . props)
+     (let ((on     (assq-ref props 'layer))
+           (radius (or (assq-ref props 'radius) 0))
+           (blur?  (assq-ref props 'blur?)))
+       `(layer-rule
+         (match (@ (namespace ,namespace)
+                   ,@(if on `((layer ,on)) '())))
+         (geometry-corner-radius ,radius)
+         ,@(if blur?
+               '((background-effect (blur true) (xray false)))
+               '()))))))
 
 (define (niri-intro)
   "// GENERATED ")
 
-(define* (niri-config #:key theme keyboard-layout xkb-options
-                      (bindings '()) (startups '()))
-  "return the list of kdl nodes for the niri config."
-  (append
-   (list (input-node keyboard-layout xkb-options)
-         (layout-node theme)
-         (overview-node theme)
-         '(hotkey-overlay (skip-at-startup))
-         '(prefer-no-csd)
-         (list 'screenshot-path "~/pictures/screenshots/screen-%Y-%m-%d-%H-%M-%S.png")
-         '(animations (slowdown 1.0))
-         (cons 'binds bindings)
-         (window-rule-node theme)
-         (layer-rule-node theme)
-         (layer-rule-popup-node theme))
-   (map (lambda (cmd) (list 'spawn-sh-at-startup cmd)) startups)))
+(define (niri-config desktop)
+  "Return the list of kdl nodes for DESKTOP's niri config."
+  (let ((theme (desktop-theme desktop)))
+    (append
+     (list (input-node (desktop-keyboard desktop))
+           (layout-node theme)
+           (overview-node theme)
+           '(hotkey-overlay (skip-at-startup))
+           '(prefer-no-csd)
+           (list 'screenshot-path "~/pictures/screenshots/screen-%Y-%m-%d-%H-%M-%S.png")
+           '(animations (slowdown 1.0))
+           (cons 'binds (niri-bindings desktop))
+           (window-rule-node theme))
+     (map layer-rule-node (desktop-layers desktop))
+     (map (lambda (cmd) (list 'spawn-sh-at-startup cmd))
+          (niri-startups desktop)))))
 
 
-;;; the home-files capability
-(define* (niri-capability #:key theme
-                          keyboard-layout
-                          xkb-options
-                          (bindings default-niri-bindings)
-                          (startups default-niri-startups))
+;;; the component
+
+(define-class <niri> (<compositor>))
+(define niri (make <niri> #:name 'niri))
+
+(define-method (component-launch (c <niri>)) "niri --session")
+(define-method (component-reload (c <niri>)) "niri msg action load-config-file")
+(define-method (component-quit   (c <niri>)) "niri msg action quit")
+
+(define-method (component-config-files (c <niri>) desktop)
   `(("niri/config.kdl"
-     ,(plain-file
-       "config.kdl"
-       (string-append
-        (niri-intro) "\n"
-        (kdl (niri-config #:theme theme
-                          #:keyboard-layout keyboard-layout
-                          #:xkb-options xkb-options
-                          #:bindings bindings
-                          #:startups startups)))))))
+     ,(plain-file "config.kdl"
+                  (string-append (niri-intro) "\n"
+                                 (kdl (niri-config desktop)))))))

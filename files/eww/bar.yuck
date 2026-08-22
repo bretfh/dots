@@ -33,11 +33,14 @@
 
 (defwidget middle []
   (box :class "bgroup grp-apps" :orientation "v" :valign "center" :hexpand true :space-evenly false :spacing 8
-    (ib :class "launch"    :onclick "setsid -f fuzzel"            :hint "Applications" :glyph "󰀻")
-    (ib :class "app term"  :onclick "setsid -f alacritty"         :hint "Terminal"     :glyph "")
+    ;; cmd-* come from <desktop>; see (dots home services eww). The bar
+    ;; opens whatever fills the role, so it can never disagree with the
+    ;; Mod+Return/D/E binds.
+    (ib :class "launch"    :onclick "setsid -f ${cmd-picker}"            :hint "Applications" :glyph "󰀻")
+    (ib :class "app term"  :onclick "setsid -f ${cmd-terminal}"         :hint "Terminal"     :glyph "")
     (ib :class "app web"   :onclick "setsid -f google-chrome"     :hint "Browser"      :glyph "")
     (ib :class "app files" :onclick "setsid -f nautilus"          :hint "Files"        :glyph "")
-    (ib :class "app edit"  :onclick "cd ~ && emacsclient -c -n"   :hint "Editor"       :glyph "")))
+    (ib :class "app edit"  :onclick "cd ~ && ${cmd-editor} -n"   :hint "Editor"       :glyph "")))
 
 (defwidget bottom []
   (box :orientation "v" :valign "end" :hexpand true :space-evenly false :spacing 12

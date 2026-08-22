@@ -1,16 +1,19 @@
 (define-module (dots home services waybar)
+  #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (ice-9 format)
   #:use-module (dots theme base)
   #:use-module (dots config css)
+  #:use-module (dots home component)
+  #:use-module (dots assets)
   #:export (waybar-style
-            waybar-capability))
+            <waybar> waybar))
 
 (define (waybar-style theme)
   (define (c role) (theme-color theme role))
   (define radpx (string-append (number->string (shape-radius (theme-shape theme))) "px"))
   (css
-   `(("*" (font-family . (\, (format #f "~s, monospace" (fonts-mono (theme-fonts theme)))))
+   `(("*" (font-family . ,(format #f "~s, monospace" (fonts-mono (theme-fonts theme))))
       (font-size . "14px"))
      ("window#waybar" (background-color . ,(c 'bg)) (color . ,(c 'fg))
       (transition . "background-color 0.2s"))
@@ -30,8 +33,11 @@
      ("#battery.critical:not(.charging)"
       (background-color . ,(c 'red)) (color . ,(c 'bright-white))))))
 
-(define (waybar-capability theme)
-  "Return a home-xdg-configuration-files entry for the waybar style themed
-from THEME."
-  `(("waybar/style.css"
-     ,(plain-file "waybar-style.css" (waybar-style theme)))))
+(define-class <waybar> (<bar>))
+(define waybar (make <waybar> #:name 'waybar))
+
+(define-method (component-config-files (c <waybar>) desktop)
+  ;; the layout is a curated JSON file; only the stylesheet is themed.
+  `(("waybar/config" ,(local-file (string-append assets-dir "/waybar/waybar")))
+    ("waybar/style.css"
+     ,(plain-file "waybar-style.css" (waybar-style (desktop-theme desktop))))))

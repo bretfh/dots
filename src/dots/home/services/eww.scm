@@ -12,11 +12,14 @@
   #:use-module (gnu services)
   #:use-module (gnu home services shepherd)
   #:use-module (gnu services shepherd)
+  #:use-module (oop goops)
   #:use-module (dots theme base)
   #:use-module (dots config css)
+  #:use-module (dots home component)
+  #:use-module (dots assets)
   #:export (eww-style
-            eww-capability
-            home-eww-broker-service-type))
+            home-eww-broker-service-type
+            <eww> eww))
 
 (define (eww-style-overrides theme)
   "Trailing rules appended after the main sheet so the cascade picks them. The
@@ -266,16 +269,48 @@ appended last so the cascade picks them."
         eww-yuck-modules)
    "\n"))
 
-(define (eww-capability theme config-dir)
-  "Return home-xdg-configuration-files entries for eww: the themed style, the
-layout (modules concatenated into one eww.yuck), and the bb service. "
+;;; The launcher row and the power menu used to name alacritty, fuzzel,
+;;; emacsclient and gtklock literally in bar.yuck and control.yuck -- a second
+;;; copy of choices the desktop already makes. They are variables now, defined
+;;; from the desktop and prepended to the stitched layout.
+(define (session-vars-yuck desktop)
+  (define (var name value)
+    (format #f "(defvar ~a ~s)" name (or value "")))
+  (string-join
+   (list ";; GENERATED from <desktop> -- see (dots home component)"
+         (var "cmd-terminal" (and=> (desktop-terminal desktop) component-launch))
+         (var "cmd-picker"   (and=> (desktop-picker desktop)   component-launch))
+         (var "cmd-editor"   (and=> (desktop-editor desktop)   component-launch))
+         (var "cmd-lock"     (and=> (desktop-lock desktop)     component-command))
+         (var "cmd-quit"     (and=> (desktop-compositor desktop) component-quit)))
+   "\n"))
+
+(define-class <eww> (<bar>))
+(define eww (make <eww> #:name 'eww))
+
+(define-method (component-launch (c <eww>)) "eww open-many echo bar")
+(define-method (component-reload (c <eww>)) "eww reload")
+
+;;; The bar and the echo are square and edge-to-edge; only the popups on the
+;;; overlay layer are rounded, so their blur must be clipped to the same
+;;; radius as their CSS corners or a square blur boxes them off.
+(define-method (component-layers (c <eww>))
+  '(("gtk-layer-shell" (radius . 0) (blur? . #t))
+    ("gtk-layer-shell" (layer . "overlay") (radius . 20))))
+
+(define-method (component-services (c <eww>) desktop)
+  (list (service home-eww-broker-service-type)))
+
+(define-method (component-config-files (c <eww>) desktop)
   (define (curated name)
     (list (string-append "eww/" name)
-          (local-file (string-append config-dir "/eww/" name))))
+          (local-file (string-append assets-dir "/eww/" name))))
   `(("eww/eww.scss"
-     ,(plain-file "eww.scss" (eww-style theme)))
+     ,(plain-file "eww.scss" (eww-style (desktop-theme desktop))))
     ("eww/eww.yuck"
-     ,(plain-file "eww.yuck" (combined-yuck config-dir)))
+     ,(plain-file "eww.yuck"
+                  (string-append (session-vars-yuck desktop) "\n"
+                                 (combined-yuck assets-dir))))
     ,(curated "broker.bb")
     ,(curated "eww-rpc")
     ,(curated "menu-toggle")

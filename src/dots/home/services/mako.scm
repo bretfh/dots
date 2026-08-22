@@ -4,11 +4,13 @@
 ;;; Returns home-xdg-configuration-files entries.
 
 (define-module (dots home services mako)
+  #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots theme base)
   #:use-module (dots config ini)
+  #:use-module (dots home component)
   #:export (mako-config
-            mako-capability))
+            <mako> mako))
 
 (define (mako-config theme)
   "Return the mako config contents themed from THEME."
@@ -24,7 +26,16 @@
          (anchor . top-right))
      ("urgency=high" (default-timeout . 0)))))
 
-(define (mako-capability theme)
-  "Return home-xdg-configuration-files entries for mako themed from THEME."
+(define-class <mako> (<notifier>))
+(define mako (make <mako> #:name 'mako))
+
+(define-method (component-reload (c <mako>)) "makoctl reload")
+
+;; The surface is fully transparent; the compositor's blur on this namespace
+;; is the whole chrome.
+(define-method (component-layers (c <mako>))
+  '(("notifications" (radius . 0) (blur? . #t))))
+
+(define-method (component-config-files (c <mako>) desktop)
   `(("mako/config"
-     ,(plain-file "mako-config" (mako-config theme)))))
+     ,(plain-file "mako-config" (mako-config (desktop-theme desktop))))))

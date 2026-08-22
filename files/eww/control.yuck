@@ -10,8 +10,8 @@
       (box :class "ctl-power-wrap" :orientation "v" :space-evenly false
         (revealer :reveal {pwcmd == ""} :transition "crossfade" :duration "120ms"
           (box :class "ctl-power" :orientation "h" :halign "fill" :space-evenly true
-            (eventbox :class "pw-a lock" :cursor "pointer" :onhover "eww update hint='Lock screen'" :onhoverlost "eww update hint=''" :onclick "eww close ctlpanel ; cd ~ && setsid -f sh ~/.config/gtklock/lock" (label :text ""))
-            (eventbox :class "pw-a logout" :cursor "pointer" :onhover "eww update hint='Log out of niri'" :onhoverlost "eww update hint=''" :onclick "eww update pwcmd='niri msg action quit' pwlabel='Log out'" (label :text ""))
+            (eventbox :class "pw-a lock" :cursor "pointer" :onhover "eww update hint='Lock screen'" :onhoverlost "eww update hint=''" :onclick "eww close ctlpanel ; cd ~ && setsid -f ${cmd-lock}" (label :text ""))
+            (eventbox :class "pw-a logout" :cursor "pointer" :onhover "eww update hint='Log out'" :onhoverlost "eww update hint=''" :onclick "eww update pwcmd='${cmd-quit}' pwlabel='Log out'" (label :text ""))
             (eventbox :class "pw-a reboot" :cursor "pointer" :onhover "eww update hint='Reboot'" :onhoverlost "eww update hint=''" :onclick "eww update pwcmd='loginctl reboot' pwlabel='Reboot'" (label :text ""))
             (eventbox :class "pw-a suspend" :cursor "pointer" :onhover "eww update hint='Suspend'" :onhoverlost "eww update hint=''" :onclick "eww close ctlpanel ; loginctl suspend" (label :text ""))
             (eventbox :class "pw-a off" :cursor "pointer" :onhover "eww update hint='Power off'" :onhoverlost "eww update hint=''" :onclick "eww update pwcmd='loginctl poweroff' pwlabel='Power off'" (label :text ""))))

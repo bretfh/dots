@@ -1,4 +1,5 @@
 (define-module (dots home services emacs)
+  #:use-module (oop goops)
   #:use-module (gnu)
   #:use-module (gnu home)
   #:use-module (gnu home services)
@@ -13,8 +14,11 @@
   #:use-module (gnu packages emacs)
   #:use-module (gnu packages emacs-xyz)
   #:use-module (dots home packages emacs)
+  #:use-module (dots home component)
+  #:use-module (dots theme base)
   #:use-module (dots assets)
-  #:export (home-emacs-config-service-type))
+  #:export (home-emacs-config-service-type
+            <emacs> emacs))
 
 (define config-dir assets-dir)
 
@@ -157,3 +161,32 @@ display the current session has. This allows Emacs to survive logout/login."
            home-xdg-configuration-files-service-type
            home-emacs-config-files-service)))
    (default-value #t)))
+
+
+;;; the component
+
+(define-class <emacs> (<editor>))
+(define emacs (make <emacs> #:name 'emacs))
+
+;; emacs-pgtk comes from the service's profile extension above, not the
+;; package list.
+(define-method (component-packages (c <emacs>)) '())
+
+;; A window from the running daemon -- never a competing instance.
+(define-method (component-launch  (c <emacs>)) "emacsclient -c")
+;; $EDITOR: a frame in the terminal that spawned it.
+(define-method (component-command (c <emacs>)) "emacsclient -t")
+
+;; pgtk emacs needs a live wayland display to make gui frames, and the home
+;; shepherd outlives the session. Rebinding the daemon to the new display is
+;; emacs's own session startup, not something the compositor should know.
+(define-method (component-autostart (c <emacs>) desktop)
+  "herd restart emacs-daemon")
+
+;; The pgtk tool-bar widget is named "emacs-toolbar"; pin it to the theme bg
+;; so its SVG icons blend in. Carried here so the GTK sheet names no program.
+(define-method (component-gtk-css (c <emacs>))
+  "#emacs-toolbar { background-color: @theme_bg_color; }")
+
+(define-method (component-services (c <emacs>) desktop)
+  (list (service home-emacs-config-service-type)))

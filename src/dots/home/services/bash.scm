@@ -37,7 +37,7 @@ if [ -z \"$DISPLAY\" ] && [ \"$(tty)\" = /dev/tty1 ]; then
 fi
 "
               (desktop-xdg-name desktop)
-              (desktop-launch-compositor desktop))
+              (component-launch (desktop-compositor desktop)))
       ""))
 
 (define* (home-bash-service #:key (config-dir assets-dir) desktop)
@@ -52,9 +52,11 @@ DESKTOP is given, export EDITOR, VISUAL, and TERMINAL derived from it."
             (environment-variables
              (append %wayland-environment-vars
                      (if desktop
-                         `(("EDITOR"   . ,(desktop-editor-command desktop))
-                           ("VISUAL"   . ,(desktop-editor-command desktop))
-                           ("TERMINAL" . ,(desktop-launch-terminal desktop)))
+                         (let ((editor   (desktop-editor desktop))
+                               (terminal (desktop-terminal desktop)))
+                           `(("EDITOR"   . ,(component-command editor))
+                             ("VISUAL"   . ,(component-command editor))
+                             ("TERMINAL" . ,(component-launch terminal))))
                          '())))
             (bashrc
              (list (local-file (string-append config-dir "/shell/bashrc"))))

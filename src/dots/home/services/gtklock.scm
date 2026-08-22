@@ -5,17 +5,20 @@
 ;;; rest of the desktop. Returns home-xdg-configuration-files entries.
 
 (define-module (dots home services gtklock)
+  #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots theme base)
   #:use-module (dots config ini)
   #:use-module (dots config css)
+  #:use-module (dots home component)
   #:export (gtklock-config
             gtklock-style
             gtklock-lock
-            gtklock-capability))
+            <gtklock> gtklock))
 
-(define (gtklock-config theme)
-  "Return the gtklock config.ini contents themed from THEME."
+(define (gtklock-config)
+  "Return the gtklock config.ini contents.  Nothing here is themed -- the
+palette lands in style.css."
   (ini
    `((main (time-format . "%H:%M")
            (date-format . "%A, %B %-d")))))
@@ -59,8 +62,15 @@ if [ -f \"$out\" ]; then exec gtklock -s \"$style\" -b \"$out\" \"$@\"; fi
 exec gtklock -s \"$style\" \"$@\"
 ")
 
-(define (gtklock-capability theme)
-  "Return home-xdg-configuration-files entries for gtklock themed from THEME."
-  `(("gtklock/config.ini" ,(plain-file "gtklock-config.ini" (gtklock-config theme)))
-    ("gtklock/style.css"  ,(plain-file "gtklock-style.css"  (gtklock-style theme)))
-    ("gtklock/lock"       ,(plain-file "gtklock-lock"       gtklock-lock))))
+(define-class <gtklock> (<lock>))
+(define gtklock (make <gtklock> #:name 'gtklock))
+
+;; What another component runs to lock the session -- the wrapper, not the
+;; binary, so the blurred-wallpaper background comes along.
+(define-method (component-command (c <gtklock>)) "sh ~/.config/gtklock/lock")
+
+(define-method (component-config-files (c <gtklock>) desktop)
+  `(("gtklock/config.ini" ,(plain-file "gtklock-config.ini" (gtklock-config)))
+    ("gtklock/style.css"  ,(plain-file "gtklock-style.css"
+                                       (gtklock-style (desktop-theme desktop))))
+    ("gtklock/lock"       ,(plain-file "gtklock-lock" gtklock-lock))))

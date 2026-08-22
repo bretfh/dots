@@ -13,16 +13,7 @@
   #:use-module (gnu services)
   #:use-module (guix gexp)
   #:use-module (dots home services bash)
-  #:use-module (dots home services emacs)
-  #:use-module (dots home services niri)
-  #:use-module (dots home services alacritty)
-  #:use-module (dots home services waybar)
-  #:use-module (dots home services fuzzel)
-  #:use-module (dots home services eww)
-  #:use-module (dots home services pine)
-  #:use-module (dots home services mako)
-  #:use-module (dots home services gtklock)
-  #:use-module (dots home services gtk)
+  #:use-module (dots home component)
   #:use-module (dots home desktop)
   #:use-module (dots assets)
   #:use-module (dots packages claude-code)
@@ -30,11 +21,7 @@
   #:use-module (dots packages qwen-code)
   #:use-module (dots packages maple-font)
   #:export (default-extra-packages default-packages default-services
-            default-theme
-            default-niri-keyboard-layout
-            default-niri-xkb-options)
-  #:re-export (default-niri-bindings
-               default-niri-startups))
+            default-theme))
 
 ;; Host-specific additions go in (home-overrides). Empty default.
 (define default-extra-packages '())
@@ -42,15 +29,6 @@
 ;; Shared theme: comes from the desktop declaration so every consumer
 ;; (niri, alacritty, ...) draws from one palette.
 (define default-theme (desktop-theme default-desktop))
-
-;; Niri inputs. xkb-options matches what your sway uses today.
-(define default-niri-keyboard-layout "us")
-(define default-niri-xkb-options "ctrl:swapcaps")
-
-;; Niri keybinds and autostart programs are defined alongside the
-;; service in (dots home services niri); these names keep the settings
-;; layer uniform with everything else.
-;; default-niri-bindings, default-niri-startups — imported above.
 
 
 ;; Always-present home packages for bfh.
@@ -91,47 +69,31 @@
                  "gammastep" "guile-ares-rs" "retroarch-assets"
                  "libretro-mupen64plus-nx" "retroarch" "flatpak")))))
 
+;; Config files that belong to no desktop component -- they are not a bar or a
+;; terminal, just files this user wants in ~/.config.
+(define %loose-config-files
+  `(("common-lisp/source-registry.conf.d/guix.conf"
+     ,(local-file (string-append assets-dir
+                                 "/common-lisp/source-registry.conf.d/guix.conf")))))
+
+;; Session plumbing: not desktop components, so they are listed rather than
+;; derived. Every entry here is something no choice of bar or compositor
+;; changes.
+(define %session-services
+  (list (service home-dbus-service-type)
+        (service home-pipewire-service-type)
+        (service home-ssh-agent-service-type)
+        (service home-openssh-service-type
+                 (home-openssh-configuration
+                  (add-keys-to-agent "yes")))))
+
+;; Everything desktop-shaped comes from the declaration in (dots home desktop):
+;; config files from every component it names, daemons from the primaries.
 (define default-services
-  (let ((config-dir assets-dir))
-    (list
-     (service home-xdg-configuration-files-service-type
-              `(("sway/config"
-                 ,(local-file (string-append config-dir "/sway/.config/sway")))
-                ,@(eww-capability default-theme config-dir)
-                ,@(mako-capability default-theme)
-                ,@(gtklock-capability default-theme)
-                ,@(gtk-capability default-theme)
-                ,@(if (eq? (desktop-terminal default-desktop) 'alacritty)
-                      (alacritty-capability default-theme)
-                      '())
-                ("wezterm/wezterm.lua"
-                 ,(local-file (string-append config-dir "/wezterm/.config/wezterm/wezterm.lua")))
-                ("waybar/config"
-                 ,(local-file (string-append config-dir "/waybar/waybar")))
-                ,@(fuzzel-capability default-theme)
-                ("vim"
-                 ,(local-file (string-append config-dir "/vim/.config/vim")
-                              #:recursive? #t))
-                ,@(waybar-capability default-theme)
-                ("common-lisp/source-registry.conf.d/guix.conf"
-                 ,(local-file (string-append config-dir "/common-lisp/source-registry.conf.d/guix.conf")))
-                ("rice/wallpaper"
-                 ,(local-file (string-append config-dir "/rice/wallpaper")))
-                ("rice/backgrounds"
-                 ,(local-file (string-append config-dir "/rice/imgs/background")
-                              #:recursive? #t))
-                ,@(niri-capability
-                   #:theme           default-theme
-                   #:keyboard-layout default-niri-keyboard-layout
-                   #:xkb-options     default-niri-xkb-options
-                   #:bindings        default-niri-bindings
-                   #:startups        default-niri-startups)))
-     (home-bash-service #:config-dir config-dir #:desktop default-desktop)
-     (service home-dbus-service-type)
-     (service home-emacs-config-service-type)
-     (service home-pine-service-type)
-     (service home-pipewire-service-type)
-     (service home-ssh-agent-service-type)
-     (service home-openssh-service-type
-              (home-openssh-configuration
-               (add-keys-to-agent "yes"))))))
+  (append
+   (list (service home-xdg-configuration-files-service-type
+                  (append (desktop-config-files default-desktop)
+                          %loose-config-files))
+         (home-bash-service #:config-dir assets-dir #:desktop default-desktop))
+   (desktop-services default-desktop)
+   %session-services))

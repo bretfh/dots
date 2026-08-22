@@ -1,7 +1,3 @@
-;;; ef-dream -- Protesilaos's ef-themes ef-dream 2.1.0. Colour roles and
-;;; the ANSI mapping are taken from ef-dream-palette; bright ANSI uses the
-;;; palette's own -warmer/-cooler hues rather than invented lightenings.
-
 (define-module (dots theme ef-dream)
   #:use-module (dots theme base)
   #:export (ef-dream))

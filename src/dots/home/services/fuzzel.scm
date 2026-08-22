@@ -3,15 +3,18 @@
 ;;; injected from the theme. Returns home-xdg-configuration-files entries.
 
 (define-module (dots home services fuzzel)
+  #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (ice-9 format)
   #:use-module (dots theme base)
   #:use-module (dots config ini)
+  #:use-module (dots home component)
   #:export (fuzzel-config
-            fuzzel-capability))
+            <fuzzel> fuzzel))
 
-(define (fuzzel-config theme)
-  "Return the fuzzel.ini contents themed from THEME."
+(define* (fuzzel-config theme #:key terminal)
+  "Return the fuzzel.ini contents themed from THEME.  TERMINAL is the command
+that runs a program in a terminal, e.g. \"alacritty -e\"."
   (define (rgba role alpha)
     (string-append (substring (theme-color theme role) 1) alpha))
   (define font (theme-fonts theme))
@@ -22,7 +25,7 @@
            (width . 32)
            (lines . 12)
            (layer . overlay)
-           (terminal . "alacritty -e"))
+           (terminal . ,(or terminal "")))
      (colors (background . ,(rgba 'bg (alpha-hex (shape-opacity shape))))
              (text . ,(rgba 'fg "ff"))
              (prompt . ,(rgba 'accent "ff"))
@@ -37,7 +40,14 @@
      (border (width . ,(shape-border shape))
              (radius . ,(shape-radius shape))))))
 
-(define (fuzzel-capability theme)
-  "Return home-xdg-configuration-files entries for fuzzel themed from THEME."
+(define-class <fuzzel> (<picker>))
+(define fuzzel (make <fuzzel> #:name 'fuzzel))
+
+(define-method (component-layers (c <fuzzel>))
+  '(("launcher" (radius . 0) (blur? . #t))))
+
+(define-method (component-config-files (c <fuzzel>) desktop)
   `(("fuzzel/fuzzel.ini"
-     ,(plain-file "fuzzel.ini" (fuzzel-config theme)))))
+     ,(plain-file "fuzzel.ini"
+                  (fuzzel-config (desktop-theme desktop)
+                                 #:terminal (desktop-terminal-exec desktop))))))

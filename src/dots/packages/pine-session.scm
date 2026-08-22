@@ -20,14 +20,14 @@
   #:use-module (guix gexp)
   #:use-module (guix build-system trivial)
   #:use-module ((guix licenses) #:prefix license:)
+  #:use-module (pine packages river)
+  #:use-module (dots home component)
   #:export (pine-session))
 
-(define %repo "$HOME/git/cl/pine")
-
-;;; The keyboard, matching the niri session: caps lock is another control.
-;;; wlroots reads these, so river needs no configuration of its own for it.
-(define %xkb-layout "us")
-(define %xkb-options "ctrl:swapcaps")
+;;; The keyboard, from the one declaration the niri session also reads.
+;;; wlroots picks these up, so river needs no configuration of its own.
+(define %xkb-layout  (keyboard-layout %default-keyboard))
+(define %xkb-options (keyboard-options-string %default-keyboard))
 
 ;;; river's init. The daemon is started at login by its own service, before
 ;;; any compositor exists, so it has no display and starts nothing. This tells
@@ -40,14 +40,7 @@
 export XDG_CURRENT_DESKTOP=pine
 log=\"${XDG_STATE_HOME:-$HOME/.local/state}/pine-session.log\"
 
-cd $HOME/git/cl/pine || exit 1
-LD_LIBRARY_PATH=$GUIX_ENVIRONMENT/lib \\
-CL_SOURCE_REGISTRY=$HOME/git/cl/pine//:$GUIX_ENVIRONMENT/share/common-lisp// \\
-ASDF_OUTPUT_TRANSLATIONS=/:$HOME/.cache/common-lisp/pine/ \\
-exec sbcl --no-userinit --non-interactive \\
-     --eval '(require :asdf)' \\
-     --eval '(asdf:load-system :pine)' \\
-     --eval '(pine::cli (list \"session\"))' >>\"$log\" 2>&1
+exec herd restart pine-daemon >>\"$log\" 2>&1
 ")
 
 
@@ -74,16 +67,16 @@ exec sbcl --no-userinit --non-interactive \\
               (lambda (port) (display #$%init-script port)))
             (chmod init #o555)
 
-            ;; What the display manager starts: the manifest's environment
-            ;; around river, with the window manager as river's init.
+            ;; What the display manager starts: river from the store, with the
+            ;; daemon as its init.
             (call-with-output-file start
               (lambda (port)
                 (format port "#!/bin/sh~%~
 export XKB_DEFAULT_LAYOUT=~a~%~
 export XKB_DEFAULT_OPTIONS=~a~%~
-cd ~a || exit 1~%~
-exec guix shell -m manifest.scm -- river -c ~a~%"
-                        #$%xkb-layout #$%xkb-options #$%repo init)))
+exec ~a -c ~a~%"
+                        #$%xkb-layout #$%xkb-options
+                        #$(file-append river-0.4 "/bin/river") init)))
             (chmod start #o555)
 
             (call-with-output-file (string-append sessions "/pine.desktop")
@@ -97,5 +90,5 @@ Type=Application~%"
     (home-page "https://codeberg.org/river/river")
     (synopsis "Wayland session entry for pine on river")
     (description "A wayland-sessions entry that starts river with pine as its
-window manager, running from pine's working tree through its own manifest.")
+window manager.")
     (license license:expat)))

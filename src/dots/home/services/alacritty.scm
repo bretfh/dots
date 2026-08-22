@@ -3,11 +3,13 @@
 ;;; mono font. Returns home-xdg-configuration-files entries.
 
 (define-module (dots home services alacritty)
+  #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots theme base)
   #:use-module (dots config toml)
+  #:use-module (dots home component)
   #:export (alacritty-config
-            alacritty-capability))
+            <alacritty> alacritty))
 
 (define (alacritty-config theme)
   "Return the alacritty.toml contents themed from THEME."
@@ -27,8 +29,13 @@
                      (blue . ,(c 'bright-blue)) (magenta . ,(c 'bright-magenta))
                      (cyan . ,(c 'bright-cyan)) (white . ,(c 'bright-white))))))
 
-(define (alacritty-capability theme)
-  "Return home-xdg-configuration-files entries for alacritty themed from
-THEME."
+(define-class <alacritty> (<terminal>))
+(define alacritty (make <alacritty> #:name 'alacritty))
+
+;; `alacritty -e CMD' is how a picker hands a command to this terminal.
+(define-method (component-exec-flag (c <alacritty>)) "-e")
+
+(define-method (component-config-files (c <alacritty>) desktop)
   `(("alacritty/alacritty.toml"
-     ,(plain-file "alacritty.toml" (alacritty-config theme)))))
+     ,(plain-file "alacritty.toml"
+                  (alacritty-config (desktop-theme desktop))))))

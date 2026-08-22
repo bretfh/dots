@@ -10,6 +10,8 @@
   #:use-module (nongnu system linux-initrd)
   #:use-module (dots packages stumpwm)
   #:use-module (dots packages pine-session)
+  ;; prefixed: `keyboard-layout' here is Guix's own, and it collides.
+  #:use-module ((dots home component) #:prefix dots:)
   #:export (default-hostname
             default-locale
             default-timezone
@@ -29,8 +31,11 @@
 (define default-locale   "en_US.utf8")
 (define default-timezone "America/New_York")
 
+;; The console/bootloader layout, from the same declaration the wayland
+;; sessions read -- (dots home component)'s %default-keyboard.
 (define default-keyboard-layout
-  (keyboard-layout "us" #:options '("ctrl:swapcaps")))
+  (keyboard-layout (dots:keyboard-layout dots:%default-keyboard)
+                   #:options (dots:keyboard-options dots:%default-keyboard)))
 
 (define default-kernel   linux)
 (define default-initrd   microcode-initrd)

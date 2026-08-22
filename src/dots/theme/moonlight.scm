@@ -1,7 +1,3 @@
-;;; moonlight -- the palette the terminal, bar, and picker carried before
-;;; the theme was unified. Kept complete so flipping the desktop's theme to
-;;; moonlight re-skins every consumer with no per-tool edits.
-
 (define-module (dots theme moonlight)
   #:use-module (dots theme base)
   #:export (moonlight))
