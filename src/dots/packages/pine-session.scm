@@ -20,6 +20,7 @@
   #:use-module (guix gexp)
   #:use-module (guix build-system trivial)
   #:use-module ((guix licenses) #:prefix license:)
+  #:use-module (gnu packages)
   #:use-module (pine packages river)
   #:use-module (dots input)
   #:export (pine-session))
@@ -32,15 +33,16 @@
 ;;; river's init. The daemon is started at login by its own service, before
 ;;; any compositor exists, so it has no display and starts nothing. This tells
 ;;; it which display the session is on, and the daemon takes it from there.
+;;; herd by its store path: what a display manager puts on PATH is not ours to
+;;; assume, and this is the one command the session depends on.
 (define %init-script "\
 #!/bin/sh
-# river runs this once it is up. Its whole job is to tell the daemon which
-# display this session is on. The daemon then starts and supervises the
-# frontends the configuration asks for, the window manager included.
+# river runs this once it is up. Its whole job is to point the daemon at the
+# display this session is on; the daemon finds the socket and takes it there.
 export XDG_CURRENT_DESKTOP=pine
 log=\"${XDG_STATE_HOME:-$HOME/.local/state}/pine-session.log\"
 
-exec herd restart pine-daemon >>\"$log\" 2>&1
+exec ~a restart pine-daemon >>\"$log\" 2>&1
 ")
 
 
@@ -64,7 +66,10 @@ exec herd restart pine-daemon >>\"$log\" 2>&1
             (mkdir-p sessions)
 
             (call-with-output-file init
-              (lambda (port) (display #$%init-script port)))
+              (lambda (port)
+                (format port #$%init-script
+                        #$(file-append (specification->package "shepherd")
+                                       "/bin/herd"))))
             (chmod init #o555)
 
             ;; What the display manager starts: river from the store, with the
