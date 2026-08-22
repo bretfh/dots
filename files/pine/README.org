@@ -1,3 +1,0 @@
-#+TITLE: pine
-
-Pine Is Not Emacs.
