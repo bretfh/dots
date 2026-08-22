@@ -1,4 +1,4 @@
-(define-module (dots site fleet)
+(define-module (dots site machines)
   #:use-module (oop goops)
   #:use-module (srfi srfi-1)
   #:use-module (gnu machine)
@@ -15,8 +15,13 @@
             current-operating-system current-home
             deploy-targets))
 
+;;; Every machine this configuration manages. A guest carries the address
+;;; `guix deploy' reaches it on; a workstation has none.
 (define (machines)
-  (list (make <framework>) (make <arraniz>) (make <builder>) (make <media>)))
+  (list (make <framework>)
+        (make <arraniz>)
+        (make <builder> #:address "10.20.0.10")
+        (make <media>   #:address "10.20.0.11")))
 
 (define (guests) (filter machine-address (machines)))
 

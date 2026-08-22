@@ -4,7 +4,7 @@
 ;;; systems its config declares, the store and its own screen; there is no
 ;;; second process behind the surfaces.
 
-(define-module (dots desktop pine)
+(define-module (dots home services pine)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (gnu services)

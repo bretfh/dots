@@ -27,16 +27,15 @@
             machine-file-systems machine-swap-devices
             machine-users machine-groups
             machine-packages machine-services
-            machine-home-packages
             machine-name-service-switch
             machine-kernel-arguments
             machine-address
-            machine-user-groups
             machine-keyboard-layout
             machine->operating-system
             machine-home))
 
-(define-class <machine> ())
+(define-class <machine> ()
+  (address #:init-keyword #:address #:init-value #f #:getter machine-address))
 
 (define-generic machine-host-name)
 
@@ -52,12 +51,9 @@
 (define-generic machine-users)
 (define-generic machine-packages)
 (define-generic machine-services)
-(define-generic machine-home-packages)
 (define-generic machine-name-service-switch)
 (define-generic machine-kernel-arguments)
 (define-generic machine-groups)
-(define-generic machine-address)
-(define-generic machine-user-groups)
 
 (define-method (machine-locale        (m <machine>)) "en_US.utf8")
 (define-method (machine-timezone      (m <machine>)) "America/New_York")
@@ -70,13 +66,8 @@
 (define-method (machine-users         (m <machine>)) '())
 (define-method (machine-packages      (m <machine>)) '())
 (define-method (machine-services      (m <machine>)) %base-services)
-(define-method (machine-home-packages (m <machine>)) '())
 (define-method (machine-name-service-switch (m <machine>)) %mdns-host-lookup-nss)
 (define-method (machine-kernel-arguments    (m <machine>)) '())
-;; Non-#f means `guix deploy' can reach it; that is what makes a machine a guest.
-(define-method (machine-address             (m <machine>)) #f)
-;; Groups this machine puts its users in because of what it runs.
-(define-method (machine-user-groups         (m <machine>)) '())
 
 ;;; A user states the groups it needs to exist. Only the ones guix does not
 ;;; already provide are declared here; a machine adds any its own services
@@ -86,17 +77,14 @@
     (filter-map (lambda (n)
                   (and (not (member n base))
                        (user-group (name n) (system? #t))))
-                (delete-duplicates (append (append-map user-groups (machine-users m))
-                               (machine-user-groups m))))))
+                (delete-duplicates
+                 (append-map (lambda (u) (user-groups u m)) (machine-users m))))))
 
 (define (machine-keyboard-layout m)
   (let ((k (machine-keyboard m)))
     (keyboard-layout (in:keyboard-layout k) #:options (in:keyboard-options k))))
 
-(define (machine-home m user)
-  (home-environment
-   (packages (append (machine-home-packages m) (user-packages user m)))
-   (services (user-services user m))))
+(define (machine-home m user) (user->home user m))
 
 (define (machine->operating-system m)
   (operating-system
@@ -111,8 +99,7 @@
    (bootloader      (machine-bootloader m))
    (file-systems    (append (machine-file-systems m) %base-file-systems))
    (swap-devices    (machine-swap-devices m))
-   (users           (append (map (lambda (u) (user->account u (machine-user-groups m)))
-                                (machine-users m))
+   (users           (append (map (lambda (u) (user->account u m)) (machine-users m))
                             %base-user-accounts))
    (groups          (delete-duplicates
                      (append (machine-groups m) %base-groups)
@@ -129,9 +116,6 @@
 
 (define-class <workstation> (<machine>))
 
-;; A desktop session and its hardware; a headless machine needs none of it.
-(define-method (machine-user-groups (m <workstation>))
-  '("tty" "lp" "netdev" "audio" "video" "kvm"))
 (define-method (machine-kernel   (m <workstation>)) linux)
 (define-method (machine-initrd   (m <workstation>)) microcode-initrd)
 (define-method (machine-firmware (m <workstation>))

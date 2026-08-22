@@ -10,9 +10,10 @@
   #:use-module (gnu services)
   #:use-module (guix gexp)
   #:use-module (dots user)
-  #:use-module (dots user bash)
+  #:use-module (dots home services bash)
   #:use-module (dots core)
   #:use-module (dots desktop)
+  #:use-module (dots machine)
   #:use-module (dots site desktop)
   #:use-module (dots assets)
   #:use-module (dots packages claude-code)
@@ -24,18 +25,22 @@
 (define-class <bfh> (<user>))
 (define bfh (make <bfh> #:name "bfh"))
 
-(define-method (user-comment (u <bfh>)) "some guy")
+(define-method (user-comment (u <bfh>) m) "some guy")
 
-(define-method (user-groups (u <bfh>))
-  '("wheel"))
+;;; Anywhere: I administer my own machines.
+(define-method (user-groups (u <bfh>) m) '("wheel"))
 
-(define-method (user-desktop (u <bfh>)) default-desktop)
+;;; On a workstation: a desktop session, and the hardware it needs.
+(define-method (user-desktop (u <bfh>) (m <workstation>)) default-desktop)
 
-(define-method (user-packages (u <bfh>) machine)
-  (%packages (user-desktop u)))
+(define-method (user-groups (u <bfh>) (m <workstation>))
+  (append (next-method) '("tty" "lp" "netdev" "audio" "video" "kvm")))
 
-(define-method (user-services (u <bfh>) machine)
-  (%services (user-desktop u)))
+(define-method (user-packages (u <bfh>) (m <workstation>))
+  (%packages (user-desktop u m)))
+
+(define-method (user-services (u <bfh>) (m <workstation>))
+  (%services (user-desktop u m)))
 
 (define (%packages d)
   (append (list claude-code claude-agent-acp qwen-code font-maple-mono-nf)

@@ -1,4 +1,4 @@
-(define-module (dots desktop gtk)
+(define-module (dots home services gtk)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (ice-9 format)

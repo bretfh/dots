@@ -1,7 +1,7 @@
 ;;; swayidle -- locks the session on idle and before sleep. It does not know
 ;;; what a lock screen is; it asks the desktop what fills the lock role.
 
-(define-module (dots desktop swayidle)
+(define-module (dots home services swayidle)
   #:use-module (oop goops)
   #:use-module (ice-9 format)
   #:use-module (dots core)

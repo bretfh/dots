@@ -2,7 +2,7 @@
 ;;; replaces the running instance, so the same command is both the session
 ;;; startup and the Mod+W action.
 
-(define-module (dots desktop swaybg)
+(define-module (dots home services swaybg)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots core)

@@ -5,6 +5,7 @@
   #:use-module (gnu)
   #:use-module (gnu packages)
   #:use-module (dots machine)
+  #:use-module (dots user)
   #:use-module (dots site users)
   #:export (<arraniz>))
 
@@ -25,10 +26,8 @@
           (type "vfat"))))
 
 ;; ddcutil's udev rule grants the i2c group /dev/i2c-* for external-monitor
-;; brightness. framework has no DDC/CI monitor and deliberately omits it.
-;; i2c is only meaningful where the ddcutil udev rule grants it /dev/i2c-*.
-
-(define-method (machine-user-groups (m <arraniz>))
+;; brightness. framework has no DDC/CI monitor and omits both.
+(define-method (user-groups (u <bfh>) (m <arraniz>))
   (cons "i2c" (next-method)))
 
 (define-method (machine-services (m <arraniz>))

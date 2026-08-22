@@ -1,7 +1,7 @@
 ;;; vim -- the fallback editor. The whole ~/.config/vim tree, plugins included,
 ;;; is curated; nothing is generated from the theme.
 
-(define-module (dots desktop vim)
+(define-module (dots home services vim)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots core)

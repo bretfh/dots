@@ -4,7 +4,7 @@
 ;;; gtklock as the background, so the lock is the same frosted glass as the
 ;;; rest of the desktop. Returns home-xdg-configuration-files entries.
 
-(define-module (dots desktop gtklock)
+(define-module (dots home services gtklock)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots theme base)

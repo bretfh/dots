@@ -12,6 +12,7 @@
   #:use-module (gnu system pam)
   #:use-module (guix gexp)
   #:use-module (dots machine)
+  #:use-module (dots user)
   #:use-module (dots site users)
   #:use-module (dots system services lgeh)
   #:use-module (dots lab network)
@@ -26,7 +27,8 @@
 
 (define-method (machine-host-name (m <framework>)) "framework")
 
-(define-method (machine-user-groups (m <framework>))
+;; bfh drives libvirt here without sudo.
+(define-method (user-groups (u <bfh>) (m <framework>))
   (cons "libvirt" (next-method)))
 
 (define-method (machine-file-systems (m <framework>))
@@ -44,9 +46,10 @@
          (target (uuid "008ed7c6-e6cb-4106-99b4-5eee8e5a7eec")))))
 
 ;; framework is the LLM host, so the llama-cpp server and its tooling live here.
-
-(define-method (machine-home-packages (m <framework>))
-  (list (specification->package "llama-cpp")
+(define-method (user-packages (u <bfh>) (m <framework>))
+  (append
+   (next-method)
+   (list (specification->package "llama-cpp")
         opentofu
         litestream
         (specification->package "virt-manager")
@@ -55,7 +58,7 @@
         (specification->package "mkcert")
         (specification->package "wezterm")
         (specification->package "github-cli")
-        (specification->package "awscli")))
+         (specification->package "awscli"))))
 
 ;; NetworkManager's wifi.scan polkit action is allow_any=auth_admin, so a
 ;; sessionless caller -- anything under the persistent Guix Home shepherd, which

@@ -1,4 +1,4 @@
-(define-module (dots desktop waybar)
+(define-module (dots home services waybar)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (ice-9 format)

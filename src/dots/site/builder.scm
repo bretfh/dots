@@ -15,8 +15,6 @@
 
 (define-method (machine-host-name (m <builder>)) "builder")
 
-(define-method (machine-address (m <builder>)) "10.20.0.10")
-
 (define-method (guest-bootstrap? (m <builder>)) #t)
 
 (define-method (machine-services (m <builder>))

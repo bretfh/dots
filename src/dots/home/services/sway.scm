@@ -3,7 +3,7 @@
 ;;; from the desktop declaration. Promoting sway would give a session that
 ;;; ignores <desktop>.
 
-(define-module (dots desktop sway)
+(define-module (dots home services sway)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots core)

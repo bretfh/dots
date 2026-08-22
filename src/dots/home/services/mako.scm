@@ -3,7 +3,7 @@
 ;;; transparent, so the niri "notifications" layer-rule blur is the chrome.
 ;;; Returns home-xdg-configuration-files entries.
 
-(define-module (dots desktop mako)
+(define-module (dots home services mako)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots theme base)

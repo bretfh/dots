@@ -1,6 +1,6 @@
 ;; bash home service: aliases, environment, profile.
 
-(define-module (dots user bash)
+(define-module (dots home services bash)
   #:use-module (gnu services)
   #:use-module (gnu home services shells)
   #:use-module (guix gexp)

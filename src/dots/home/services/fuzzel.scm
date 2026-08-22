@@ -2,7 +2,7 @@
 ;;; uses an INI file with RRGGBBAA colours; the palette and mono font are
 ;;; injected from the theme. Returns home-xdg-configuration-files entries.
 
-(define-module (dots desktop fuzzel)
+(define-module (dots home services fuzzel)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (ice-9 format)

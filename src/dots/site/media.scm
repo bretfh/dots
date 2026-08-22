@@ -20,7 +20,6 @@
 
 (define-method (machine-host-name (m <media>)) "media")
 
-(define-method (machine-address (m <media>)) "10.20.0.11")
 ;; Declared as a shepherd one-shot rather than a file-system because
 ;; `guix deploy' validates declared file-systems against real block devices
 ;; and "music" is a virtio tag, not a /dev path.

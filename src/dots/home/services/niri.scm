@@ -1,4 +1,4 @@
-(define-module (dots desktop niri)
+(define-module (dots home services niri)
   #:use-module (oop goops)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 format)

@@ -1,4 +1,4 @@
-(define-module (dots desktop emacs)
+(define-module (dots home services emacs)
   #:use-module (oop goops)
   #:use-module (gnu)
   #:use-module (gnu home)

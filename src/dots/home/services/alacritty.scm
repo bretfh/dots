@@ -2,7 +2,7 @@
 ;;; palette plus primary background/foreground, cursor, and the theme's
 ;;; mono font. Returns home-xdg-configuration-files entries.
 
-(define-module (dots desktop alacritty)
+(define-module (dots home services alacritty)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots theme base)

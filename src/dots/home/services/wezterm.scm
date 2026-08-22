@@ -1,7 +1,7 @@
 ;;; wezterm -- the fallback terminal. Its config is a curated lua file; the
 ;;; theme is not generated into it.
 
-(define-module (dots desktop wezterm)
+(define-module (dots home services wezterm)
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots core)

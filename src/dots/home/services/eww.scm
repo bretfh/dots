@@ -3,7 +3,7 @@
 ;;; (palette + mono font); the .yuck layout and the babashka feeders are curated
 ;;; files. Returns home-xdg-configuration-files entries.
 
-(define-module (dots desktop eww)
+(define-module (dots home services eww)
   #:use-module (guix gexp)
   #:use-module (ice-9 format)
   #:use-module (ice-9 textual-ports)
