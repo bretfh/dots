@@ -11,6 +11,7 @@
   #:use-module (dots config ini)
   #:use-module (dots config css)
   #:use-module (dots core)
+  #:use-module (dots desktop)
   #:export (gtklock-config
             gtklock-style
             gtklock-lock

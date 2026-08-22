@@ -1,4 +1,4 @@
-(define-module (dots user bfh)
+(define-module (dots site users)
   #:use-module (oop goops)
   #:use-module (gnu packages)
   #:use-module (gnu home)
@@ -13,6 +13,7 @@
   #:use-module (dots user bash)
   #:use-module (dots core)
   #:use-module (dots desktop)
+  #:use-module (dots site desktop)
   #:use-module (dots assets)
   #:use-module (dots packages claude-code)
   #:use-module (dots packages claude-agent-acp)
@@ -26,7 +27,7 @@
 (define-method (user-comment (u <bfh>)) "some guy")
 
 (define-method (user-groups (u <bfh>))
-  '("tty" "lp" "wheel" "netdev" "audio" "video" "kvm" "i2c"))
+  '("wheel"))
 
 (define-method (user-desktop (u <bfh>)) default-desktop)
 

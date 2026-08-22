@@ -5,6 +5,7 @@
   #:use-module (oop goops)
   #:use-module (ice-9 format)
   #:use-module (dots core)
+  #:use-module (dots desktop)
   #:export (<swayidle> swayidle))
 
 (define-class <swayidle> (<idle>))

@@ -6,6 +6,7 @@
   #:use-module (guix gexp)
   #:use-module (dots theme base)
   #:use-module (dots core)
+  #:use-module (dots desktop)
   #:use-module (dots input)
   #:use-module (dots config kdl)
   #:export (niri-config

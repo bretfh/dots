@@ -8,6 +8,7 @@
   #:use-module (dots theme base)
   #:use-module (dots config toml)
   #:use-module (dots core)
+  #:use-module (dots desktop)
   #:export (alacritty-config
             <alacritty> alacritty))
 

@@ -1,12 +1,15 @@
-(define-module (dots fleet)
+(define-module (dots site fleet)
   #:use-module (oop goops)
   #:use-module (srfi srfi-1)
   #:use-module (gnu machine)
   #:use-module (gnu machine ssh)
-  #:use-module (dots machine base)
-  #:use-module (dots machines)
+  #:use-module (dots machine)
+  #:use-module (dots site framework)
+  #:use-module (dots site arraniz)
+  #:use-module (dots site builder)
+  #:use-module (dots site media)
   #:use-module (dots user)
-  #:use-module (dots user bfh)
+  #:use-module (dots site users)
   #:export (machines guests
             current-hostname machine-named current-machine current-user
             current-operating-system current-home

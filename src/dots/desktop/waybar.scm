@@ -5,6 +5,7 @@
   #:use-module (dots theme base)
   #:use-module (dots config css)
   #:use-module (dots core)
+  #:use-module (dots desktop)
   #:use-module (dots assets)
   #:export (waybar-style
             <waybar> waybar))

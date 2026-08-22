@@ -9,6 +9,7 @@
   #:use-module (dots theme base)
   #:use-module (dots config ini)
   #:use-module (dots core)
+  #:use-module (dots desktop)
   #:export (fuzzel-config
             <fuzzel> fuzzel))
 

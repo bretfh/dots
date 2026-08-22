@@ -38,13 +38,13 @@
 (define-method (user-services       (u <user>) machine) '())
 (define-method (user-desktop        (u <user>)) #f)
 
-(define (user->account u)
+(define* (user->account u #:optional (extra-groups '()))
   (let ((acct (user-account
                (name (user-name u))
                (comment (user-comment u))
                (group (user-primary-group u))
                (home-directory (user-home-directory u))
-               (supplementary-groups (user-groups u)))))
+               (supplementary-groups (append (user-groups u) extra-groups)))))
     (if (user-shell u)
         (user-account (inherit acct) (shell (user-shell u)))
         acct)))

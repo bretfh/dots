@@ -1,46 +1,101 @@
-;;; <desktop> -- the single declaration of the session: which tools fill each
-;;; role and which theme and keyboard they share. Each role is a SET whose head
-;;; is the primary and whose tail are fallbacks. The primary drives keybinds,
-;;; env, launch commands, autostart and daemons; fallbacks stay installed and
-;;; keep their generated config, so promoting one is reordering a list.
-;;;
-;;; Nothing here says how any of these programs works. Each answers for itself
-;;; in (dots desktop NAME) -- see (dots core) for the questions
-;;; a component can be asked. Adding a program is a class and its methods in
-;;; one module, plus its name in one list below.
-
 (define-module (dots desktop)
+  #:use-module (oop goops)
+  #:use-module (guix records)
+  #:use-module (srfi srfi-1)
   #:use-module (dots core)
   #:use-module (dots input)
   #:use-module (dots theme ef-dream)
-  #:use-module (dots desktop niri)
-  #:use-module (dots desktop pine)
-  #:use-module (dots desktop eww)
-  #:use-module (dots desktop waybar)
-  #:use-module (dots desktop fuzzel)
-  #:use-module (dots desktop alacritty)
-  #:use-module (dots desktop emacs)
-  #:use-module (dots desktop mako)
-  #:use-module (dots desktop gtklock)
-  #:use-module (dots desktop gtk)
-  #:use-module (dots desktop sway)
-  #:use-module (dots desktop wezterm)
-  #:use-module (dots desktop vim)
-  #:use-module (dots desktop swaybg)
-  #:use-module (dots desktop swayidle)
-  #:export (default-desktop))
+  #:export (desktop desktop? desktop-all desktop-autostarts desktop-bar desktop-bars desktop-compositor desktop-compositors desktop-config-files desktop-editor desktop-editors desktop-gtk-css desktop-idler desktop-idlers desktop-keyboard desktop-layers desktop-lock desktop-locks desktop-notifier desktop-notifiers desktop-packages desktop-picker desktop-pickers desktop-primaries desktop-reload-command desktop-roles desktop-services desktop-terminal desktop-terminal-exec desktop-terminals desktop-theme desktop-toolkit desktop-toolkits desktop-wallpaper desktop-wallpapers desktop-xdg-name))
 
-(define default-desktop
-  (desktop
-   (compositors (list niri sway))
-   (bars        (list pine eww waybar))
-   (pickers     (list fuzzel))
-   (terminals   (list alacritty wezterm))
-   (editors     (list emacs vim))
-   (notifiers   (list mako))
-   (locks       (list gtklock))
-   (idlers      (list swayidle))
-   (wallpapers  (list swaybg))
-   (toolkits    (list gtk))
-   (theme       ef-dream)
-   (keyboard    %default-keyboard)))
+;;; <desktop>: which programs fill each role, and the theme they share.
+
+(define-record-type* <desktop> desktop make-desktop
+  desktop?
+  (compositors desktop-compositors (default '()))
+  (bars        desktop-bars        (default '()))
+  (pickers     desktop-pickers     (default '()))
+  (terminals   desktop-terminals   (default '()))
+  (editors     desktop-editors     (default '()))
+  (notifiers   desktop-notifiers   (default '()))
+  (locks       desktop-locks       (default '()))
+  (idlers      desktop-idlers      (default '()))
+  (wallpapers  desktop-wallpapers  (default '()))
+  (toolkits    desktop-toolkits    (default '()))
+  (theme       desktop-theme       (default ef-dream))
+  (keyboard    desktop-keyboard    (default %default-keyboard)))
+
+(define (desktop-roles d)
+  "Return D's role lists, in declaration order.  Autostart order follows this
+list, so the notifier and the bar come up before the wallpaper."
+  (list (desktop-compositors d) (desktop-notifiers d) (desktop-bars d)
+        (desktop-pickers d) (desktop-terminals d) (desktop-editors d)
+        (desktop-locks d) (desktop-idlers d) (desktop-wallpapers d)
+        (desktop-toolkits d)))
+
+(define (desktop-all d)
+  "Every component D declares, primary and fallback alike."
+  (concatenate (desktop-roles d)))
+
+(define (desktop-primaries d)
+  "The head of each of D's role lists."
+  (filter-map (lambda (role) (and (pair? role) (car role)))
+              (desktop-roles d)))
+
+(define (primary lst) (and (pair? lst) (car lst)))
+
+(define (desktop-compositor d) (primary (desktop-compositors d)))
+(define (desktop-bar        d) (primary (desktop-bars d)))
+(define (desktop-picker     d) (primary (desktop-pickers d)))
+(define (desktop-terminal   d) (primary (desktop-terminals d)))
+(define (desktop-editor     d) (primary (desktop-editors d)))
+(define (desktop-notifier   d) (primary (desktop-notifiers d)))
+(define (desktop-lock       d) (primary (desktop-locks d)))
+(define (desktop-idler      d) (primary (desktop-idlers d)))
+(define (desktop-wallpaper  d) (primary (desktop-wallpapers d)))
+(define (desktop-toolkit    d) (primary (desktop-toolkits d)))
+
+(define (desktop-xdg-name d)
+  (component-xdg-name (desktop-compositor d)))
+
+(define (desktop-terminal-exec d)
+  "Return the command prefix that runs another program inside D's terminal,
+e.g. \"alacritty -e\".  This is what a picker hands off to."
+  (let* ((t (desktop-terminal d))
+         (flag (and t (component-exec-flag t))))
+    (and t (if flag
+               (string-append (component-launch t) " " flag)
+               (component-launch t)))))
+
+
+;;; the four things the home environment asks a whole desktop for. Each is an
+;;; append-map over the components; none of them names a program.
+
+(define (desktop-packages d)
+  "Package specifications for every component D declares."
+  (append-map component-packages (desktop-all d)))
+
+(define (desktop-config-files d)
+  "home-xdg-configuration-files entries for every component D declares, so a
+fallback keeps its config and switching to it is a one-line change."
+  (append-map (lambda (c) (component-config-files c d)) (desktop-all d)))
+
+(define (desktop-services d)
+  "Guix services for D's primaries only -- a demoted program's daemon stops
+being declared."
+  (append-map (lambda (c) (component-services c d)) (desktop-primaries d)))
+
+(define (desktop-autostarts d)
+  "The commands the compositor spawns at session start, in role order."
+  (filter-map (lambda (c) (component-autostart c d)) (desktop-primaries d)))
+
+(define (desktop-gtk-css d)
+  "Extra GTK3 rules contributed by D's components."
+  (filter-map component-gtk-css (desktop-all d)))
+
+(define (desktop-layers d)
+  "Every layer-shell surface D's components declare."
+  (append-map component-layers (desktop-all d)))
+
+(define (desktop-reload-command d)
+  "One shell command that reloads every primary that can be reloaded."
+  (string-join (filter-map component-reload (desktop-primaries d)) "; "))

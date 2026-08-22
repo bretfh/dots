@@ -5,6 +5,7 @@
   #:use-module (dots theme base)
   #:use-module (dots config ini)
   #:use-module (dots core)
+  #:use-module (dots desktop)
   #:export (gtk-settings
             gtk3-css
             gtk4-css
