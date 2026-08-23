@@ -457,10 +457,16 @@
 (bind 'text "C-c p" "previous-track")
 (bind 'text "C-c s" "status")
 
-(bind 'text "s-Return" "wm-terminal")
-(bind 'text "s-q" "wm-close-window")
-(bind 'text "s-j" "wm-focus-next")
-(bind 'text "s-k" "wm-focus-previous")
-(bind 'text "s-2" "split-below")
-(bind 'text "s-3" "split-beside")
-(bind 'text "s-S-e" "wm-exit")
+;;; The window manager's own. A chord in TEXT is heard while a document has the
+;;; keyboard; one in WM the compositor takes and hands over whatever is focused,
+;;; which is what these have to be. Under niri they say nothing: niri keeps its
+;;; own.
+
+(bind 'wm "s-Return" "wm-terminal")
+(bind 'wm "s-q" "wm-close-window")
+(bind 'wm "s-j" "wm-focus-next")
+(bind 'wm "s-k" "wm-focus-previous")
+(bind 'wm "s-w" "switch-to-window")
+(bind 'wm "s-2" "split-below")
+(bind 'wm "s-3" "split-beside")
+(bind 'wm "s-S-e" "wm-exit")
