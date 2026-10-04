@@ -1,10 +1,9 @@
-;;; A VM that logs in the way a person does: gdm offers the pine session, picks
-;;; it for bfh, and runs it through a login shell -- which is what starts the
-;;; home shepherd, which is what owns the pine daemon. The only way to test that
-;;; path without logging out.
+;;; A VM that logs in the way a person does: gdm offers the sill session, picks
+;;; it for bfh, and starts it -- river, with sill as its window manager and its
+;;; bar. The only way to test that path without logging out of this one.
 ;;;
-;;;   PINE_VM_HOME=$(guix home -L src build home.scm) \
-;;;     guix system vm --image-size=6G -L src -L ~/git/cl/pine/guix pine-vm.scm
+;;;   SILL_VM_HOME=$(guix home -L src build home.scm) \
+;;;     guix system vm --image-size=6G -L src -L ~/git/cl/sill/guix sill-vm.scm
 ;;;
 ;;; The script it writes runs with 512M and a read-only disk, which is not
 ;;; enough. Run qemu with its arguments plus -m 6144, snapshot=on, a virtio-gpu,
@@ -12,15 +11,17 @@
 ;;; socket is how you see what it drew, and `console=ttyS0' with a serial socket
 ;;; is how you ask the daemon what it thinks.
 
+(add-to-load-path (dirname (current-filename)))
 (use-modules (gnu) (guix gexp) (gnu services) (gnu services shepherd)
-             (dots packages pine-session)
+             (dots packages sill-session)
+             (users bfh)
              (dots packages maple-font))
 (use-service-modules desktop xorg dbus networking sound)
 (use-package-modules fonts fontutils terminals)
 
 (define %home
-  (or (getenv "PINE_VM_HOME")
-      (error "PINE_VM_HOME unset: guix home -L src build home.scm")))
+  (or (getenv "SILL_VM_HOME")
+      (error "SILL_VM_HOME unset: guix home -L src build home.scm")))
 
 (define activate-bfh-home
   ;; What `guix home reconfigure' does once on a real machine: put .profile and
@@ -36,11 +37,11 @@
           (setuid (passwd:uid pw)))
         (execl #$(string-append %home "/activate") "activate"))))
 
-(define %pine-is-the-session
-  (plain-file "bfh-accounts" "[User]\nSession=pine\nSystemAccount=false\n"))
+(define %sill-is-the-session
+  (plain-file "bfh-accounts" "[User]\nSession=sill\nSystemAccount=false\n"))
 
 (operating-system
-  (host-name "pine-vm")
+  (host-name "sill-vm")
   (timezone "Etc/UTC")
   (locale "en_US.utf8")
 
@@ -55,14 +56,14 @@
 
   (users (cons (user-account
                 (name "bfh")
-                (comment "pine")
+                (comment "sill")
                 (group "users")
                 (password "")
                 (supplementary-groups
                  '("wheel" "audio" "video" "input" "tty")))
                %base-user-accounts))
 
-  (packages (cons* pine-session
+  (packages (cons* (sill-session %keyboard)
                    font-maple-mono-nf font-dejavu fontconfig
                    foot (specification->package "alacritty")
                    %base-packages))
@@ -72,7 +73,7 @@
     (simple-service 'bfh-session-choice activation-service-type
                     #~(begin
                         (mkdir-p "/var/lib/AccountsService/users")
-                        (copy-file #$%pine-is-the-session
+                        (copy-file #$%sill-is-the-session
                                    "/var/lib/AccountsService/users/bfh")))
     (simple-service 'bfh-home shepherd-root-service-type
                     (list (shepherd-service

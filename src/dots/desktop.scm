@@ -1,11 +1,12 @@
 (define-module (dots desktop)
   #:use-module (oop goops)
+  #:use-module (guix gexp)
   #:use-module (guix records)
   #:use-module (srfi srfi-1)
+  #:use-module (ice-9 format)
   #:use-module (dots core)
   #:use-module (dots input)
-  #:use-module (dots theme ef-dream)
-  #:export (desktop desktop? desktop-all desktop-autostarts desktop-bar desktop-bars desktop-compositor desktop-compositors desktop-config-files desktop-editor desktop-editors desktop-gtk-css desktop-idler desktop-idlers desktop-keyboard desktop-layers desktop-lock desktop-locks desktop-notifier desktop-notifiers desktop-packages desktop-picker desktop-pickers desktop-primaries desktop-reload-command desktop-roles desktop-services desktop-terminal desktop-terminal-exec desktop-terminals desktop-theme desktop-toolkit desktop-toolkits desktop-wallpaper desktop-wallpapers desktop-xdg-name))
+  #:export (desktop desktop? desktop-all desktop-asset desktop-assets desktop-autostarts desktop-bar desktop-bars desktop-compositor desktop-compositors desktop-config-files desktop-editor desktop-editors desktop-environment desktop-gtk-css desktop-idler desktop-idlers desktop-keyboard desktop-layers desktop-lock desktop-locks desktop-login-script desktop-notifier desktop-notifiers desktop-packages desktop-picker desktop-pickers desktop-primaries desktop-reload-command desktop-roles desktop-services desktop-terminal desktop-terminal-exec desktop-terminals desktop-theme desktop-toolkit desktop-toolkits desktop-wallpaper desktop-wallpapers desktop-xdg-name))
 
 ;;; <desktop>: which programs fill each role, and the theme they share.
 
@@ -21,8 +22,16 @@
   (idlers      desktop-idlers      (default '()))
   (wallpapers  desktop-wallpapers  (default '()))
   (toolkits    desktop-toolkits    (default '()))
-  (theme       desktop-theme       (default ef-dream))
-  (keyboard    desktop-keyboard    (default %default-keyboard)))
+  (theme       desktop-theme)
+  (keyboard    desktop-keyboard    (default %default-keyboard))
+  (assets      desktop-assets      (default #f)))
+
+(define* (desktop-asset d rel #:key recursive?)
+  "REL, a path under D's asset directory, as a local-file."
+  (unless (desktop-assets d)
+    (error "desktop has no assets directory" rel))
+  (local-file (canonicalize-path (string-append (desktop-assets d) "/" rel))
+              #:recursive? recursive?))
 
 (define (desktop-roles d)
   "Return D's role lists, in declaration order.  Autostart order follows this
@@ -99,3 +108,20 @@ being declared."
 (define (desktop-reload-command d)
   "One shell command that reloads every primary that can be reloaded."
   (string-join (filter-map component-reload (desktop-primaries d)) "; "))
+
+(define (desktop-environment d)
+  "Environment variables D's primaries put in every login shell."
+  (append-map component-environment (desktop-primaries d)))
+
+(define (desktop-login-script d)
+  "What a login shell does on a bare tty1, where no display manager handed off
+a session: set the identity that path lacks and start D's compositor."
+  (format #f "\
+if [ -z \"$DISPLAY\" ] && [ \"$(tty)\" = /dev/tty1 ]; then
+    export XDG_CURRENT_DESKTOP=~a
+    export XDG_SESSION_TYPE=wayland
+    exec ~a
+fi
+"
+          (desktop-xdg-name d)
+          (component-launch (desktop-compositor d))))

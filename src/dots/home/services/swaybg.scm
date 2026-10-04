@@ -6,7 +6,7 @@
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots core)
-  #:use-module (dots assets)
+  #:use-module (dots desktop)
   #:export (<swaybg> swaybg))
 
 (define-class <swaybg> (<wallpaper>))
@@ -16,7 +16,6 @@
 
 (define-method (component-config-files (c <swaybg>) desktop)
   `(("rice/wallpaper"
-     ,(local-file (string-append assets-dir "/rice/wallpaper")))
+     ,(desktop-asset desktop "rice/wallpaper"))
     ("rice/backgrounds"
-     ,(local-file (string-append assets-dir "/rice/imgs/background")
-                  #:recursive? #t))))
+     ,(desktop-asset desktop "rice/imgs/background" #:recursive? #t))))

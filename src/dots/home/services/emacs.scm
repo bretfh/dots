@@ -16,11 +16,9 @@
   #:use-module (dots packages emacs)
   #:use-module (dots core)
   #:use-module (dots theme base)
-  #:use-module (dots assets)
+  #:use-module (dots desktop)
   #:export (home-emacs-config-service-type
             <emacs> emacs))
-
-(define config-dir assets-dir)
 
 (define (home-emacs-config-profile-service config)
   (list emacs-pgtk
@@ -107,15 +105,6 @@
         emacs-emms))
 ;;	emacs-super-save))
 
-(define (home-emacs-config-files-service config)
-  `(("emacs/early-init.el"
-     ,(local-file (string-append config-dir "/emacs/early-init.el")))
-    ("emacs/init.el"
-     ,(local-file (string-append config-dir "/emacs/init.el")))))
-;;  `(("emacs" 
-;;     ,(local-file (string-append (getenv "HOME") "/dots/home/config/emacs/emacs.d")
-;;		  #:recursive? #t))))
-
 (define (home-emacs-daemon-shepherd-service config)
   "Run Emacs as a daemon.
 
@@ -156,10 +145,7 @@ display the current session has. This allows Emacs to survive logout/login."
            home-emacs-config-profile-service)
           (service-extension
            home-shepherd-service-type
-           home-emacs-daemon-shepherd-service)
-          (service-extension
-           home-xdg-configuration-files-service-type
-           home-emacs-config-files-service)))
+           home-emacs-daemon-shepherd-service)))
    (default-value #t)))
 
 
@@ -190,3 +176,7 @@ display the current session has. This allows Emacs to survive logout/login."
 
 (define-method (component-services (c <emacs>) desktop)
   (list (service home-emacs-config-service-type)))
+
+(define-method (component-config-files (c <emacs>) desktop)
+  `(("emacs/early-init.el" ,(desktop-asset desktop "emacs/early-init.el"))
+    ("emacs/init.el"       ,(desktop-asset desktop "emacs/init.el"))))

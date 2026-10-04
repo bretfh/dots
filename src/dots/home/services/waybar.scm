@@ -6,7 +6,6 @@
   #:use-module (dots config css)
   #:use-module (dots core)
   #:use-module (dots desktop)
-  #:use-module (dots assets)
   #:export (waybar-style
             <waybar> waybar))
 
@@ -39,6 +38,6 @@
 
 (define-method (component-config-files (c <waybar>) desktop)
   ;; the layout is a curated JSON file; only the stylesheet is themed.
-  `(("waybar/config" ,(local-file (string-append assets-dir "/waybar/waybar")))
+  `(("waybar/config" ,(desktop-asset desktop "waybar/waybar"))
     ("waybar/style.css"
      ,(plain-file "waybar-style.css" (waybar-style (desktop-theme desktop))))))

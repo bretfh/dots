@@ -17,7 +17,6 @@
   #:use-module (dots config css)
   #:use-module (dots core)
   #:use-module (dots desktop)
-  #:use-module (dots assets)
   #:export (eww-style
             home-eww-broker-service-type
             <eww> eww))
@@ -278,8 +277,7 @@ appended last so the cascade picks them."
   (define (var name value)
     (format #f "(defvar ~a ~s)" name (or value "")))
   (string-join
-   (list ";; GENERATED from <desktop> -- see (dots home component)"
-         (var "cmd-terminal" (and=> (desktop-terminal desktop) component-launch))
+   (list (var "cmd-terminal" (and=> (desktop-terminal desktop) component-launch))
          (var "cmd-picker"   (and=> (desktop-picker desktop)   component-launch))
          (var "cmd-editor"   (and=> (desktop-editor desktop)   component-launch))
          (var "cmd-lock"     (and=> (desktop-lock desktop)     component-command))
@@ -305,13 +303,13 @@ appended last so the cascade picks them."
 (define-method (component-config-files (c <eww>) desktop)
   (define (curated name)
     (list (string-append "eww/" name)
-          (local-file (string-append assets-dir "/eww/" name))))
+          (desktop-asset desktop (string-append "eww/" name))))
   `(("eww/eww.scss"
      ,(plain-file "eww.scss" (eww-style (desktop-theme desktop))))
     ("eww/eww.yuck"
      ,(plain-file "eww.yuck"
                   (string-append (session-vars-yuck desktop) "\n"
-                                 (combined-yuck assets-dir))))
+                                 (combined-yuck (desktop-assets desktop)))))
     ,(curated "broker.bb")
     ,(curated "eww-rpc")
     ,(curated "menu-toggle")

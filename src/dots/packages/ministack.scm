@@ -13,7 +13,7 @@
 (define-public ministack
   (package
     (name "ministack")
-    (version "1.4.14")
+    (version "1.5.6")
     (source
      (origin
        (method url-fetch)
@@ -22,7 +22,7 @@
              version ".tar.gz"))
        (file-name (string-append name "-" version ".tar.gz"))
        (sha256
-        (base32 "1va1391jcsl4vm140b574gm9kdghbagma7lna5lqjqmsm2hj5mvs"))))
+        (base32 "0iqkdx82af8gyi4p7s9xc2vb36rckd9yb5qxk8dc76g37cyqv1m5"))))
     (build-system pyproject-build-system)
     (arguments
      (list

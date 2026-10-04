@@ -12,15 +12,11 @@
   #:use-module (gnu services base)
   #:use-module (gnu services desktop)
   #:use-module (gnu services networking)
-  #:use-module (gnu packages)
+  #:use-module (gnu machine ssh)
   #:use-module (guix gexp)
   #:use-module (nongnu packages linux)
   #:use-module (nongnu system linux-initrd)
-  #:use-module (dots packages stumpwm)
-  #:use-module (dots packages pine-session)
-  #:use-module (gnu services ssh)
   #:export (<machine> <workstation> <guest> with-nonguix-substitutes
-            %builder-substitute-url
             machine-host-name
             machine-locale machine-timezone machine-keyboard
             machine-kernel machine-initrd machine-firmware machine-bootloader
@@ -30,6 +26,7 @@
             machine-name-service-switch
             machine-kernel-arguments
             machine-address
+            machine-ssh
             machine-keyboard-layout
             machine->operating-system
             machine-home))
@@ -54,9 +51,10 @@
 (define-generic machine-name-service-switch)
 (define-generic machine-kernel-arguments)
 (define-generic machine-groups)
+(define-generic machine-ssh)
 
 (define-method (machine-locale        (m <machine>)) "en_US.utf8")
-(define-method (machine-timezone      (m <machine>)) "America/New_York")
+(define-method (machine-timezone      (m <machine>)) "Etc/UTC")
 (define-method (machine-keyboard      (m <machine>)) in:%default-keyboard)
 (define-method (machine-kernel        (m <machine>)) linux-libre)
 (define-method (machine-initrd        (m <machine>)) base-initrd)
@@ -68,6 +66,13 @@
 (define-method (machine-services      (m <machine>)) %base-services)
 (define-method (machine-name-service-switch (m <machine>)) %mdns-host-lookup-nss)
 (define-method (machine-kernel-arguments    (m <machine>)) '())
+
+(define-method (machine-ssh (m <machine>))
+  "How `guix deploy' reaches M."
+  (machine-ssh-configuration
+   (host-name (machine-address m))
+   (system "x86_64-linux")
+   (user "root")))
 
 ;;; A user states the groups it needs to exist. Only the ones guix does not
 ;;; already provide are declared here; a machine adds any its own services
@@ -127,18 +132,6 @@
    (targets '("/boot/efi"))
    (keyboard-layout (machine-keyboard-layout m))))
 
-(define-method (machine-packages (m <workstation>))
-  (append (list pine-session)
-          (map specification->package
-               '("openssh"
-                 "sway" "niri" "swaylock" "swayidle" "wlgreet"
-                 "xorg-server-xwayland" "xwayland-satellite" "alacritty"
-                 "pipewire" "wireplumber" "pavucontrol"
-                 "wofi" "wl-clipboard" "mako"
-                 "network-manager" "network-manager-applet"
-                 "brightnessctl" "ddcutil" "git"))
-          %stumpwm-packages))
-
 (define (with-nonguix-substitutes services)
   (modify-services services
     (guix-service-type config =>
@@ -147,7 +140,7 @@
        (substitute-urls
         (cons "https://substitutes.nonguix.org" %default-substitute-urls))
        (authorized-keys
-        (cons (local-file "../../keys/nonguix.pub")
+        (cons (local-file "keys/nonguix.pub")
               %default-authorized-guix-keys))))))
 
 (define-method (machine-services (m <workstation>))
@@ -160,14 +153,7 @@
           (dns "none"))))))
 
 
-(define %builder-substitute-url "http://10.20.0.10:8080")
-
 (define-class <guest> (<machine>))
-
-
-;; The builder cannot pull substitutes from itself.
-(define-generic guest-bootstrap?)
-(define-method (guest-bootstrap? (m <guest>)) #f)
 
 (define-method (machine-kernel-arguments (m <guest>)) '("console=ttyS0,115200"))
 
@@ -185,31 +171,5 @@
           (device (file-system-label "Guix_image"))
           (type "ext4"))))
 
-(define (guest-substitutes m)
-  (lambda (config)
-    (guix-configuration
-     (inherit config)
-     (substitute-urls
-      (if (guest-bootstrap? m)
-          (cons "https://substitutes.nonguix.org" %default-substitute-urls)
-          (cons* %builder-substitute-url
-                 "https://substitutes.nonguix.org"
-                 %default-substitute-urls)))
-     (authorized-keys
-      (append (list (local-file "../../keys/builder.pub"))
-              (cons (local-file "../../keys/nonguix.pub")
-                    %default-authorized-guix-keys))))))
-
 (define-method (machine-services (m <guest>))
-  (append
-   (list (service dhcpcd-service-type)
-         (service openssh-service-type
-                  (openssh-configuration
-                   (port-number 2226)
-                   (password-authentication? #f)
-                   (permit-root-login 'prohibit-password)
-                   (authorized-keys
-                    `(("bfh"  ,(local-file "../../authorized-keys/bfh.pub"))
-                      ("root" ,(local-file "../../authorized-keys/bfh.pub")))))))
-   (modify-services (next-method)
-     (guix-service-type config => ((guest-substitutes m) config)))))
+  (cons (service dhcpcd-service-type) (next-method)))

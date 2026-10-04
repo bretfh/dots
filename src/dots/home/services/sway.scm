@@ -7,7 +7,7 @@
   #:use-module (oop goops)
   #:use-module (guix gexp)
   #:use-module (dots core)
-  #:use-module (dots assets)
+  #:use-module (dots desktop)
   #:export (<sway> sway))
 
 (define-class <sway> (<compositor>))
@@ -17,4 +17,4 @@
 
 (define-method (component-config-files (c <sway>) desktop)
   `(("sway/config"
-     ,(local-file (string-append assets-dir "/sway/.config/sway")))))
+     ,(desktop-asset desktop "sway/.config/sway"))))

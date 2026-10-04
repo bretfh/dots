@@ -44,7 +44,7 @@
             component-gtk-css
             component-layers
             component-quit
-))
+            component-environment))
 
 
 
@@ -80,6 +80,7 @@
 (define-generic component-gtk-css)
 (define-generic component-layers)
 (define-generic component-quit)
+(define-generic component-environment)
 
 (define-method (component-launch (c <component>))
   "The command that starts C in a live session."
@@ -138,6 +139,11 @@ give them blur and corners without knowing which program owns them.  Each is
 (NAMESPACE (layer . L) (radius . R) (blur? . B)); layer and blur? optional."
   '())
 
+(define-method (component-environment (c <component>))
+  "Environment variables C puts in every login shell.  Only a primary is
+asked, so a fallback editor never becomes $EDITOR."
+  '())
+
 ;;; Role defaults. A bar, a notifier, an idle watcher and a wallpaper are part
 ;;; of the session and come up with it; a terminal, picker, editor or lock is
 ;;; invoked on demand.
@@ -145,6 +151,26 @@ give them blur and corners without knowing which program owns them.  Each is
 (define-method (component-autostart (c <notifier>) d)  (component-launch c))
 (define-method (component-autostart (c <idle>) d)      (component-launch c))
 (define-method (component-autostart (c <wallpaper>) d) (component-launch c))
+
+;;; What a role tells the shell. The compositor's hints are wayland's, not any
+;;; one program's. The session identity (XDG_CURRENT_DESKTOP, XDG_SESSION_TYPE)
+;;; is not here: whatever starts the session owns it.
+(define %wayland-environment
+  '(("RTC_USE_PIPEWIRE" . "true")
+    ("SDL_VIDEODRIVER" . "wayland")
+    ("MOZ_ENABLE_WAYLAND" . "1")
+    ("CLUTTER_BACKEND" . "wayland")
+    ("ELM_ENGINE" . "wayland_egl")
+    ("ECORE_EVAS_ENGINE" . "wayland-egl")
+    ("QT_QPA_PLATFORM" . "wayland-egl")
+    ("_JAVA_AWT_WM_NONREPARENTING" . "1")))
+
+(define-method (component-environment (c <compositor>)) %wayland-environment)
+(define-method (component-environment (c <terminal>))
+  `(("TERMINAL" . ,(component-launch c))))
+(define-method (component-environment (c <editor>))
+  `(("EDITOR" . ,(component-command c))
+    ("VISUAL" . ,(component-command c))))
 
 ;;; A toolkit is not a program: it skins other applications and nothing else.
 (define-method (component-packages (c <toolkit>)) '())

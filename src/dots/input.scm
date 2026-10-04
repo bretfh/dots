@@ -8,10 +8,9 @@
 (define-record-type* <keyboard> keyboard make-keyboard
   keyboard?
   (layout  keyboard-layout  (default "us"))
-  (options keyboard-options (default '("ctrl:swapcaps"))))
+  (options keyboard-options (default '())))
 
 (define (keyboard-options-string k)
   (string-join (keyboard-options k) ","))
 
-(define %default-keyboard
-  (keyboard (layout "us") (options '("ctrl:swapcaps"))))
+(define %default-keyboard (keyboard))
